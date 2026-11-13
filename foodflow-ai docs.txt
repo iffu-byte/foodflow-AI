@@ -1,0 +1,2116 @@
+# MASTER DEVELOPMENT PROMPT: FOODFLOW AI – COMPLETE FOOD DELIVERY MARKETPLACE
+
+## Project: FoodFlow AI
+### Transform FoodFlow AI into a Zomato-like food ordering, restaurant management, rider delivery and real-time operations platform.
+
+Act as a Senior Full-Stack Architect, Product Engineer, Backend Developer, Frontend Developer, Database Architect, Real-Time Systems Engineer and UI/UX Designer.
+
+You are working on an existing project called **FoodFlow AI – Intelligent Food Delivery Prediction, Tracking and Optimization Platform**.
+
+The existing project already has an **Admin Console**. Do not rebuild or replace it. First inspect the complete repository, understand its architecture, identify existing functionality and extend it.
+
+Your responsibility is to transform the current application into a fully connected food delivery marketplace with:
+
+1. Customer Dashboard
+2. Rider Dashboard
+3. Existing Admin Console integration
+4. Restaurant Order Management integration or a minimal restaurant operations interface if one does not exist
+5. Centralized Backend
+6. Real-Time Communication
+7. AI-Based Delivery ETA
+8. Intelligent Rider Assignment
+9. Live Order Tracking
+10. Complete Order and Delivery Lifecycle
+
+The final result must behave like a real food delivery platform, following familiar marketplace functionality found in applications such as Zomato and Swiggy, while retaining FoodFlow AI's own identity and AI capabilities.
+
+Do not just create attractive static dashboards. Every major interface must be connected to working backend APIs, PostgreSQL database operations, authentication, authorization, and real-time events.
+
+---
+
+# PHASE 1: COMPLETE EXISTING PROJECT AUDIT
+
+Before writing or modifying code, inspect the entire existing repository.
+
+Analyze:
+
+- Frontend framework and project structure.
+- Backend framework and API architecture.
+- Existing authentication implementation.
+- Existing database configuration and schema.
+- Existing SQLAlchemy models or ORM.
+- Existing API routers and service layers.
+- Existing Admin Console functionality.
+- Existing user roles and authorization.
+- Existing order management implementation.
+- Existing AI/ML prediction implementation.
+- Existing WebSocket or real-time functionality.
+- Existing maps and routing integrations.
+- Existing environment variables.
+- Existing deployment configuration.
+- Existing reusable UI components.
+- Existing styles, animations and responsive layouts.
+
+Identify which components are already implemented and which are incomplete or missing.
+
+Produce a concise implementation report before making architectural changes.
+
+IMPORTANT:
+
+- Preserve the existing Admin Console and its routes.
+- Preserve existing working authentication.
+- Preserve the current database wherever possible.
+- Reuse existing API endpoints and models where appropriate.
+- Do not create duplicate authentication systems.
+- Do not introduce an unnecessary microservices architecture.
+- Do not replace the current technology stack without a strong technical reason.
+- Do not delete existing functionality.
+- Use database migrations for schema changes.
+- Do not use hardcoded arrays as substitutes for backend functionality.
+- Do not leave major dashboard controls non-functional.
+
+Prefer extending the existing codebase using its established coding conventions.
+
+If the current architecture uses React, Tailwind CSS, FastAPI, PostgreSQL and SQLAlchemy, continue using them.
+
+If the actual project uses different technologies, follow the existing implementation instead of forcing a replacement.
+
+After the audit, create a prioritized implementation plan and then execute it.
+
+---
+
+# PHASE 2: COMPLETE APPLICATION ARCHITECTURE
+
+Build a centralized architecture where all dashboards communicate with the same backend and database.
+
+Required architecture:
+
+CUSTOMER DASHBOARD
+        |
+        |
+RIDER DASHBOARD ---- ADMIN CONSOLE
+        |                  |
+        |                  |
+        +--------+---------+
+                 |
+                 |
+          CENTRAL BACKEND
+                 |
+        +--------+----------+
+        |                   |
+   REST API LAYER      WEBSOCKET LAYER
+        |                   |
+        |                   |
+   BUSINESS LOGIC      REAL-TIME EVENTS
+        |
+        +-------------------------------+
+        |              |                |
+    ORDER SERVICE  RIDER SERVICE   RESTAURANT SERVICE
+        |              |                |
+        +--------------+----------------+
+                       |
+                 AI ETA ENGINE
+                       |
+                 DISPATCH ENGINE
+                       |
+                 DELAY DETECTION
+                       |
+                 POSTGRESQL DATABASE
+
+All interfaces must use the same order records and consistent backend state.
+
+Do not separately store order status in the Customer, Rider and Admin frontends.
+
+The backend must remain the source of truth.
+
+## Required application roles
+
+Implement or extend role-based access control:
+
+- CUSTOMER
+- RIDER
+- RESTAURANT_MANAGER
+- ADMIN
+
+Each account must have a role associated with it.
+
+A customer must never access another customer's private orders.
+
+A rider must only access their own assignments and associated delivery information.
+
+A restaurant manager must only manage orders belonging to their authorized restaurant.
+
+Admin must retain the functionality of the existing console and have authorized access to all operational records.
+
+Use the existing authentication implementation and securely integrate role-based authorization.
+
+---
+
+# PHASE 3: CUSTOMER DASHBOARD – ZOMATO-LIKE FOOD ORDERING EXPERIENCE
+
+Create a complete and polished Customer Dashboard.
+
+The customer experience should be intuitive, responsive and visually attractive.
+
+Do not create a generic admin-style dashboard for customers. Build a proper food discovery and ordering interface.
+
+## 3.1 Customer landing page
+
+Create an attractive food marketplace home page.
+
+Include:
+
+- FoodFlow AI logo and navigation.
+- Location selector.
+- Delivery address.
+- Search bar.
+- Restaurant categories.
+- Recommended restaurants.
+- Popular restaurants.
+- Trending dishes.
+- Top-rated restaurants.
+- Personalized recommendations.
+- Offers and discounts.
+- Recently ordered food.
+- Cart indicator.
+- Customer profile menu.
+
+Recommended food categories:
+
+- Biryani
+- Pizza
+- Burgers
+- South Indian
+- North Indian
+- Chinese
+- Desserts
+- Beverages
+- Healthy Food
+- Fast Food
+
+Restaurant cards should display:
+
+- Restaurant image.
+- Restaurant name.
+- Food category.
+- Rating.
+- Average preparation time.
+- Estimated delivery time.
+- Delivery fee.
+- Minimum order value, if applicable.
+- Availability status.
+- Promotional offers.
+
+All information must come from the backend.
+
+Create proper loading, empty, error and unavailable states.
+
+## 3.2 Restaurant search and discovery
+
+Implement:
+
+- Search restaurants by name.
+- Search dishes.
+- Search cuisines.
+- Filter by rating.
+- Filter by delivery time.
+- Filter by price range.
+- Filter by vegetarian/non-vegetarian preferences.
+- Filter by food categories.
+- Sort by popularity.
+- Sort by rating.
+- Sort by estimated delivery time.
+
+Implement search using backend queries.
+
+Use debouncing on frontend search inputs.
+
+Do not download the complete restaurant dataset for every search.
+
+Apply pagination or efficient filtering.
+
+## 3.3 Restaurant details page
+
+When a customer clicks a restaurant, open its detailed page.
+
+Include:
+
+- Restaurant banner.
+- Restaurant logo.
+- Restaurant name.
+- Address.
+- Ratings and reviews.
+- Cuisine types.
+- Estimated preparation time.
+- Delivery estimate.
+- Opening hours.
+- Delivery availability.
+- Restaurant information.
+- Menu categories.
+- Individual food items.
+
+Each food item should show:
+
+- Food image.
+- Food name.
+- Description.
+- Price.
+- Vegetarian/non-vegetarian indicator.
+- Availability.
+- Add button.
+- Quantity controls.
+- Customization options if supported.
+
+Customers must be able to add and remove items.
+
+The menu must come from the database.
+
+## 3.4 Shopping cart
+
+Build a fully functional cart system.
+
+Requirements:
+
+- Add food items.
+- Remove food items.
+- Increase quantity.
+- Decrease quantity.
+- Persist cart between page refreshes.
+- Display item prices.
+- Display subtotal.
+- Apply coupons.
+- Calculate delivery charges.
+- Calculate applicable taxes or fees.
+- Display final amount.
+
+IMPORTANT BUSINESS RULE:
+
+Do not allow items from multiple restaurants in the same cart unless a multi-restaurant ordering system is explicitly implemented.
+
+For the MVP, allow one restaurant per cart.
+
+Recalculate all prices on the server before order creation.
+
+Never trust the total amount sent by the frontend.
+
+## 3.5 Checkout system
+
+Create a proper checkout page.
+
+Fields:
+
+- Delivery address.
+- Customer phone number.
+- Delivery instructions.
+- Selected cart items.
+- Payment method.
+- Order summary.
+- Estimated delivery window.
+
+Support:
+
+1. Cash on Delivery.
+2. Mock payment or sandbox payment integration.
+
+Do not store card numbers, CVV values or sensitive payment credentials.
+
+If payment gateway credentials are not configured, use a clearly labelled demo payment adapter or COD.
+
+The checkout API must validate:
+
+- Restaurant availability.
+- Food item availability.
+- Prices.
+- Quantities.
+- Delivery location.
+- Delivery eligibility.
+- Coupon validity.
+- Order total.
+
+On success, create a unique order ID.
+
+Example:
+
+FF-2026-000123
+
+Immediately publish the new order to the appropriate authorized backend subscribers.
+
+Display an order confirmation page.
+
+## 3.6 Customer orders page
+
+Create separate sections:
+
+- Active Orders.
+- Previous Orders.
+- Cancelled Orders.
+
+Each order card should contain:
+
+- Order ID.
+- Restaurant.
+- Ordered items.
+- Total amount.
+- Order date.
+- Current status.
+- Estimated delivery.
+- Track Order button.
+- Reorder button.
+
+When the customer clicks Track Order, open the live tracking interface.
+
+## 3.7 Live order tracking page
+
+This is one of the most important features.
+
+Build a visually attractive live tracking page.
+
+Display:
+
+- Restaurant location.
+- Customer delivery location.
+- Rider's current location.
+- Delivery route.
+- Estimated arrival.
+- Rider name.
+- Rider profile picture, if available.
+- Rider phone/contact option, subject to privacy.
+- Vehicle information.
+- Order status.
+- Order timeline.
+
+Live status progression:
+
+1. Order Placed.
+2. Restaurant Confirmed.
+3. Preparing Your Food.
+4. Food Ready.
+5. Rider Assigned.
+6. Rider Picked Up Your Order.
+7. On the Way.
+8. Arriving Soon.
+9. Delivered.
+
+Update the interface automatically through WebSockets.
+
+Do not require page refresh.
+
+Display ETA changes when the backend generates a new ETA.
+
+Show a meaningful notification when the rider is assigned or the estimated delivery time changes.
+
+Display a proper empty state if the rider has not yet been assigned.
+
+Display a clear label when tracking is simulated rather than based on actual device GPS.
+
+## 3.8 Customer profile
+
+Implement:
+
+- Profile details.
+- Update name.
+- Update phone number.
+- Saved addresses.
+- Add address.
+- Edit address.
+- Delete address.
+- Default address.
+- Dietary preferences.
+- Favorite restaurants.
+- Previous orders.
+- Logout.
+
+Use backend persistence.
+
+## 3.9 Customer feedback
+
+After successful delivery, allow the customer to:
+
+- Rate the restaurant.
+- Rate the delivery experience.
+- Review food.
+- Submit written feedback.
+
+Store reviews in PostgreSQL.
+
+Ensure a customer can review only an order they actually completed.
+
+---
+
+# PHASE 4: RIDER DASHBOARD – DELIVERY PARTNER APPLICATION
+
+Create a completely separate Rider Dashboard.
+
+This should look and function like a real delivery partner application.
+
+It must not simply be another Admin Console.
+
+Design for both desktop and mobile screens.
+
+Prioritize the mobile experience because delivery riders commonly use smartphones.
+
+## 4.1 Rider authentication
+
+Create a rider login experience using the existing authentication architecture.
+
+A rider account should have:
+
+- Rider ID.
+- Full name.
+- Email.
+- Phone number.
+- Vehicle type.
+- Vehicle registration, if required for the prototype.
+- Profile photo.
+- Availability status.
+- Current location.
+- Verification status.
+- Account status.
+
+Use the existing role-based authentication.
+
+Do not allow an ordinary customer to access the rider dashboard.
+
+If a customer needs to become a rider, use an authorized application and approval workflow.
+
+## 4.2 Rider dashboard homepage
+
+Create the main Rider Dashboard.
+
+Display:
+
+- Rider profile.
+- Online/Offline toggle.
+- Current availability.
+- New delivery requests.
+- Active deliveries.
+- Today's completed deliveries.
+- Today's earnings.
+- Weekly earnings.
+- Average rating.
+- Delivery history.
+
+Include a live map showing the rider's current location and active assignment when available.
+
+Use clear visual hierarchy.
+
+Make the online/offline control prominent.
+
+## 4.3 Online and offline availability
+
+When the rider switches Online:
+
+- Update rider availability through the backend.
+- Record last active time.
+- Send the latest permitted location.
+- Make the rider eligible for new assignments.
+
+When the rider switches Offline:
+
+- Update availability immediately.
+- Stop sending unnecessary location updates.
+- Do not assign new orders.
+- Preserve any currently active delivery until it is completed or an authorized reassignment is performed.
+
+Never mark a rider offline in the frontend without updating the database.
+
+Only online, eligible riders should receive new delivery offers.
+
+## 4.4 Live delivery requests
+
+When an eligible rider is selected by the Dispatch Engine, send a real-time delivery request.
+
+The rider must receive a notification immediately.
+
+Display a delivery request card containing:
+
+- Order ID.
+- Restaurant name.
+- Restaurant pickup location.
+- Approximate pickup distance.
+- Estimated time to restaurant.
+- Customer delivery area, with appropriate privacy restrictions.
+- Estimated delivery distance.
+- Expected delivery time.
+- Estimated earnings.
+- Accept button.
+- Reject button.
+
+Include a countdown timer for the offer.
+
+For example:
+
+New delivery request
+
+Restaurant: Paradise Restaurant
+
+Pickup ETA: 5 minutes
+
+Delivery distance: 3.2 km
+
+Estimated earnings: ₹45
+
+[ACCEPT] [REJECT]
+
+The example values are illustrative; calculate real values from the system.
+
+IMPORTANT:
+
+- Accept and reject actions must call backend APIs.
+- Never assign the same delivery to two riders.
+- Use a database transaction to lock and validate the assignment.
+- Check that the rider is still eligible.
+- Reject stale requests.
+- Handle request expiry.
+- When a rider rejects, the backend should find another eligible rider or expose the order to Admin for manual assignment.
+
+## 4.5 Rider acceptance workflow
+
+When the rider accepts a delivery:
+
+1. Update the delivery assignment in PostgreSQL.
+2. Associate the order with that rider.
+3. Set the rider's assignment status to ACCEPTED.
+4. Publish a real-time assignment event.
+5. Update the Admin Console.
+6. Update the Customer Dashboard.
+7. Display the assigned rider in customer tracking.
+8. Start tracking updates where supported.
+
+All these changes must originate from the backend.
+
+Do not use frontend-only state changes to pretend an assignment succeeded.
+
+## 4.6 Navigation to restaurant
+
+After acceptance, show:
+
+- Restaurant details.
+- Restaurant address.
+- Pickup coordinates.
+- Route.
+- Distance.
+- Estimated arrival.
+- Navigation action.
+
+Use the existing map implementation or integrate a suitable map provider.
+
+OSRM/OpenStreetMap can provide route geometry and estimated route duration.
+
+Do not claim that OSRM provides live road traffic.
+
+## 4.7 Restaurant arrival and pickup
+
+Create these actions:
+
+- Arrived at Restaurant.
+- Confirm Food Pickup.
+- Contact Restaurant, where supported.
+
+When the rider arrives:
+
+- Update the assignment event.
+- Notify the backend.
+- Notify the customer and Admin Console.
+
+Before marking the food as picked up, validate the assignment and order state.
+
+Optionally implement an order pickup OTP.
+
+The restaurant can display the pickup code and the rider can enter it.
+
+Validate the code on the backend.
+
+Only allow pickup after the restaurant has marked the order ready and any configured pickup verification succeeds.
+
+## 4.8 Navigation to customer
+
+After pickup confirmation:
+
+- Change delivery state.
+- Notify the customer.
+- Display destination.
+- Display route.
+- Display updated ETA.
+- Enable permitted location updates.
+
+Show a prominent status:
+
+"Food picked up – On the way!"
+
+## 4.9 Delivery completion
+
+When the rider reaches the customer:
+
+- Show Arrived at Customer.
+- Validate delivery completion.
+- Optionally verify a customer delivery OTP.
+- Mark order delivered.
+- Record delivery completion time.
+- Update rider availability.
+- Update delivery earnings.
+- Update customer's order history.
+- Update Admin analytics.
+- Send a delivery-completed notification.
+
+Do not allow the rider to mark an order delivered before it has been picked up.
+
+## 4.10 Rider earnings dashboard
+
+Create an earnings screen.
+
+Display:
+
+- Today's earnings.
+- Weekly earnings.
+- Monthly earnings.
+- Completed deliveries.
+- Earnings per delivery.
+- Incentives, if configured.
+- Delivery history.
+
+Calculate earnings from completed eligible deliveries only.
+
+Keep an earnings ledger so that the displayed total can be audited.
+
+Do not implement real payouts unless a proper payout integration is configured.
+
+## 4.11 Rider delivery history
+
+Display:
+
+- Order ID.
+- Restaurant.
+- Delivery date.
+- Distance.
+- Completion time.
+- Delivery earnings.
+- Final status.
+
+Include filters by date and status.
+
+## 4.12 Rider profile and settings
+
+Allow:
+
+- View profile.
+- Update permitted profile fields.
+- Update vehicle information where authorized.
+- View rating.
+- View verification status.
+- Change notification preferences.
+- Logout.
+
+Do not allow self-service changes to sensitive verification or approval statuses.
+
+---
+
+# PHASE 5: RESTAURANT OPERATIONS INTEGRATION
+
+First inspect whether a restaurant dashboard already exists.
+
+If it does, extend it.
+
+If it does not, build a lightweight restaurant operations interface. A working restaurant acceptance and preparation flow is necessary for a realistic delivery lifecycle.
+
+Required features:
+
+- Restaurant login.
+- Incoming order notifications.
+- Accept order.
+- Reject order with reason.
+- Set preparation estimate.
+- Mark order Preparing.
+- Mark order Ready for Pickup.
+- View active orders.
+- View completed orders.
+- View item availability.
+- View daily order summary.
+
+When a customer places an order, the restaurant must immediately receive the incoming order notification.
+
+When the restaurant accepts an order, the customer must receive confirmation.
+
+When the restaurant marks food Ready, the dispatch process must be informed.
+
+The Admin Console must reflect every important restaurant transition.
+
+---
+
+# PHASE 6: BACKEND IMPLEMENTATION – CENTRALIZED BUSINESS LOGIC
+
+The backend controls the entire platform.
+
+Inspect the existing backend framework and preserve its architecture.
+
+If the existing backend uses FastAPI, organize the code using a modular service and router architecture.
+
+Suggested structure, to be adapted to the existing project:
+
+backend/
+  app/
+    main.py
+
+    api/
+      auth.py
+      customers.py
+      restaurants.py
+      menu.py
+      carts.py
+      orders.py
+      riders.py
+      assignments.py
+      tracking.py
+      payments.py
+      reviews.py
+      notifications.py
+      admin.py
+
+    models/
+      user.py
+      customer.py
+      restaurant.py
+      menu_item.py
+      cart.py
+      order.py
+      order_item.py
+      rider.py
+      delivery_assignment.py
+      tracking_point.py
+      payment.py
+      earnings.py
+      review.py
+      order_event.py
+
+    schemas/
+      customer.py
+      restaurant.py
+      menu.py
+      order.py
+      rider.py
+      tracking.py
+      payment.py
+
+    services/
+      customer_service.py
+      restaurant_service.py
+      order_service.py
+      pricing_service.py
+      dispatch_service.py
+      rider_service.py
+      tracking_service.py
+      eta_service.py
+      notification_service.py
+      earnings_service.py
+
+    websocket/
+      connection_manager.py
+      event_manager.py
+
+    ml/
+      predict.py
+      preprocessing.py
+
+    integrations/
+      routing.py
+      payment_gateway.py
+
+    database/
+      session.py
+      migrations/
+
+    core/
+      config.py
+      security.py
+      permissions.py
+
+Use existing naming conventions and avoid unnecessary duplication.
+
+## 6.1 Required customer APIs
+
+Create or extend APIs:
+
+GET /api/v1/restaurants
+
+GET /api/v1/restaurants/{restaurant_id}
+
+GET /api/v1/restaurants/{restaurant_id}/menu
+
+GET /api/v1/food/categories
+
+GET /api/v1/food/search
+
+GET /api/v1/customers/profile
+
+PUT /api/v1/customers/profile
+
+GET /api/v1/customers/addresses
+
+POST /api/v1/customers/addresses
+
+PUT /api/v1/customers/addresses/{address_id}
+
+DELETE /api/v1/customers/addresses/{address_id}
+
+POST /api/v1/cart/items
+
+GET /api/v1/cart
+
+PUT /api/v1/cart/items/{item_id}
+
+DELETE /api/v1/cart/items/{item_id}
+
+POST /api/v1/orders
+
+GET /api/v1/customers/orders
+
+GET /api/v1/orders/{order_id}
+
+POST /api/v1/orders/{order_id}/cancel
+
+POST /api/v1/orders/{order_id}/review
+
+POST /api/v1/orders/{order_id}/reorder
+
+## 6.2 Required restaurant APIs
+
+GET /api/v1/restaurant/orders
+
+GET /api/v1/restaurant/orders/{order_id}
+
+POST /api/v1/restaurant/orders/{order_id}/accept
+
+POST /api/v1/restaurant/orders/{order_id}/reject
+
+PATCH /api/v1/restaurant/orders/{order_id}/status
+
+GET /api/v1/restaurant/menu
+
+PATCH /api/v1/restaurant/menu/{item_id}
+
+GET /api/v1/restaurant/analytics
+
+## 6.3 Required rider APIs
+
+GET /api/v1/riders/me
+
+PUT /api/v1/riders/me/availability
+
+POST /api/v1/riders/me/location
+
+GET /api/v1/riders/me/offers
+
+POST /api/v1/delivery-assignments/{assignment_id}/accept
+
+POST /api/v1/delivery-assignments/{assignment_id}/reject
+
+POST /api/v1/delivery-assignments/{assignment_id}/arrived-at-restaurant
+
+POST /api/v1/delivery-assignments/{assignment_id}/pickup
+
+POST /api/v1/delivery-assignments/{assignment_id}/arrived-at-customer
+
+POST /api/v1/delivery-assignments/{assignment_id}/complete
+
+GET /api/v1/riders/me/active-delivery
+
+GET /api/v1/riders/me/delivery-history
+
+GET /api/v1/riders/me/earnings
+
+## 6.4 Required tracking and ETA APIs
+
+GET /api/v1/orders/{order_id}/tracking
+
+GET /api/v1/orders/{order_id}/eta
+
+POST /api/v1/orders/{order_id}/recalculate-eta
+
+POST /api/v1/eta/predict
+
+All resource endpoints must validate ownership and role permissions.
+
+Use Pydantic schemas for request and response validation.
+
+Use consistent HTTP status codes.
+
+Return consistent error responses.
+
+Do not expose database exception details to frontend users.
+
+---
+
+# PHASE 7: DATABASE DESIGN
+
+Inspect the current schema first.
+
+Reuse existing tables and relationships where appropriate.
+
+Create migrations for any required additions.
+
+Ensure foreign keys, unique constraints, indexes and transaction safety.
+
+Required domain entities:
+
+1. users
+2. customer_profiles
+3. customer_addresses
+4. restaurants
+5. restaurant_staff
+6. menu_categories
+7. menu_items
+8. carts
+9. cart_items
+10. orders
+11. order_items
+12. riders
+13. delivery_assignments
+14. order_events
+15. tracking_points
+16. eta_predictions
+17. payments
+18. delivery_earnings
+19. reviews
+20. notifications
+
+Important fields:
+
+ORDERS:
+- id
+- order_number
+- customer_id
+- restaurant_id
+- rider_id, where applicable
+- delivery_address_id or an immutable delivery-address snapshot
+- subtotal
+- delivery_fee
+- discount
+- tax
+- total_amount
+- payment_method
+- payment_status
+- order_status
+- estimated_delivery_at
+- actual_delivery_at
+- created_at
+- updated_at
+
+DELIVERY_ASSIGNMENTS:
+- id
+- order_id
+- rider_id
+- assignment_status
+- offered_at
+- accepted_at
+- pickup_at
+- completed_at
+- estimated_pickup_time
+- estimated_delivery_time
+- rejection_reason
+
+RIDERS:
+- id
+- user_id
+- vehicle_type
+- availability_status
+- verification_status
+- current_latitude
+- current_longitude
+- last_location_update
+- average_rating
+
+TRACKING_POINTS:
+- id
+- order_id
+- rider_id
+- latitude
+- longitude
+- created_at
+
+ORDER_EVENTS:
+- id
+- order_id
+- actor_id
+- actor_role
+- event_type
+- previous_status
+- new_status
+- event_data
+- created_at
+
+ETA_PREDICTIONS:
+- id
+- order_id
+- predicted_minutes
+- lower_bound_minutes
+- upper_bound_minutes
+- prediction_source
+- model_version
+- created_at
+
+Use normalized relational design where appropriate.
+
+Do not keep duplicate order information in separate dashboard databases.
+
+Keep an immutable event/history trail of important changes.
+
+---
+
+# PHASE 8: COMPLETE ORDER LIFECYCLE
+
+This is the central workflow of FoodFlow.
+
+Implement it as a backend-controlled state machine.
+
+## Stage 1 – Order Placement
+
+Customer selects food and completes checkout.
+
+Backend:
+
+1. Validate customer authentication.
+2. Validate restaurant.
+3. Validate menu item availability.
+4. Recalculate order amount.
+5. Create order.
+6. Create order items.
+7. Create initial order event.
+8. Record payment method and appropriate payment status.
+9. Commit the database transaction.
+10. Publish order-created event.
+
+Customer sees:
+
+"Your order has been placed successfully."
+
+Admin Console sees:
+
+"New Order Received."
+
+Restaurant dashboard sees:
+
+"New Incoming Order."
+
+## Stage 2 – Restaurant Confirmation
+
+Restaurant receives a new order.
+
+Restaurant can accept or reject.
+
+On acceptance:
+
+- Change restaurant/order status.
+- Record confirmation.
+- Record preparation estimate.
+- Inform customer.
+- Update Admin Console.
+- Trigger initial delivery planning.
+
+On rejection:
+
+- Record reason.
+- Notify customer.
+- Apply the configured refund/cancellation rules.
+- Release any reserved resources.
+
+## Stage 3 – Food Preparation
+
+Restaurant marks:
+
+PREPARING
+
+Backend records preparation state and estimates readiness.
+
+Customer sees:
+
+"Your food is being prepared."
+
+Admin sees:
+
+"Restaurant Preparing Order."
+
+ETA engine calculates expected delivery time.
+
+## Stage 4 – Rider Discovery
+
+Dispatch engine searches for eligible riders.
+
+Check:
+
+- Rider online status.
+- Verification status.
+- Location freshness.
+- Pickup distance.
+- Existing active delivery count.
+- Configured delivery capacity.
+- Vehicle suitability.
+- Current assignment availability.
+
+Select an eligible candidate.
+
+Do not assign riders based on distance alone.
+
+Do not assign a rider with an invalid or stale location unless the system explicitly permits an approved fallback.
+
+## Stage 5 – Rider Offer
+
+Create a delivery offer.
+
+Send it to the selected rider using an authenticated real-time event.
+
+Rider receives:
+
+"New Delivery Available."
+
+Rider accepts or rejects.
+
+If accepted:
+
+- Use a transaction to claim the assignment.
+- Verify no other rider has already claimed it.
+- Mark rider assigned.
+- Update order's rider relationship.
+- Publish rider-assigned event.
+
+If rejected or expired:
+
+- Mark that offer declined/expired.
+- Try the next eligible candidate.
+- Enforce a maximum retry count.
+- Notify Admin if automated assignment fails.
+
+## Stage 6 – Food Ready
+
+Restaurant marks:
+
+READY_FOR_PICKUP
+
+Customer sees the update.
+
+Assigned rider sees pickup-ready information.
+
+If no rider exists, dispatch continues or Admin can manually assign one.
+
+## Stage 7 – Rider Pickup
+
+Rider arrives at the restaurant.
+
+Rider selects:
+
+ARRIVED_AT_RESTAURANT
+
+After required verification, rider marks:
+
+PICKED_UP
+
+Backend:
+
+- Validates the assignment.
+- Updates delivery progress.
+- Records pickup time.
+- Publishes the pickup event.
+- Recalculates ETA.
+- Notifies customer and Admin.
+
+Customer sees:
+
+"Your order has been picked up!"
+
+## Stage 8 – Delivery in Progress
+
+Rider selects:
+
+ON_THE_WAY
+
+Rider location is updated through a secure API or WebSocket.
+
+Backend broadcasts authorized location updates.
+
+Customer tracking page displays the rider moving along the route.
+
+Calculate remaining ETA.
+
+Do not send location updates indefinitely when the rider is offline or has completed the delivery.
+
+## Stage 9 – Delivery Completion
+
+Rider reaches destination.
+
+Optional OTP verification.
+
+Rider selects:
+
+DELIVERED
+
+Backend:
+
+1. Validates assigned rider.
+2. Validates that pickup happened.
+3. Validates delivery completion requirements.
+4. Updates order status.
+5. Records actual delivery time.
+6. Closes delivery assignment.
+7. Updates rider availability.
+8. Creates earnings entry.
+9. Publishes order-delivered event.
+10. Updates customer history.
+11. Updates Admin Console analytics.
+12. Enables customer review.
+
+Customer sees:
+
+"Enjoy your meal! Your order has been delivered."
+
+---
+
+# PHASE 9: REAL-TIME INTEGRATION – CUSTOMER + RIDER + ADMIN
+
+This phase is extremely important.
+
+Use WebSockets for real-time communication.
+
+If FastAPI is used, implement a centralized connection manager.
+
+Recommended WebSocket channels:
+
+/ws/customer
+
+/ws/rider
+
+/ws/orders/{order_id}
+
+/ws/admin
+
+Each connection must be authenticated.
+
+Implement object-level authorization.
+
+Only users authorized for a specific order may subscribe to its events.
+
+Admin may subscribe to operational events according to existing role permissions.
+
+## Required real-time event types
+
+ORDER_CREATED
+
+RESTAURANT_ACCEPTED
+
+RESTAURANT_REJECTED
+
+ORDER_PREPARING
+
+ORDER_READY
+
+RIDER_SEARCH_STARTED
+
+RIDER_OFFER_CREATED
+
+RIDER_OFFER_ACCEPTED
+
+RIDER_OFFER_REJECTED
+
+RIDER_ASSIGNED
+
+RIDER_ARRIVED_AT_RESTAURANT
+
+ORDER_PICKED_UP
+
+RIDER_LOCATION_UPDATED
+
+ETA_UPDATED
+
+DELIVERY_DELAY_DETECTED
+
+RIDER_ARRIVED_AT_CUSTOMER
+
+ORDER_DELIVERED
+
+ORDER_CANCELLED
+
+PAYMENT_UPDATED
+
+NOTIFICATION_CREATED
+
+Each event should use a consistent structure:
+
+{
+    "event_id": "unique-event-id",
+    "event_type": "RIDER_ASSIGNED",
+    "order_id": "FF-2026-000123",
+    "actor_role": "RIDER",
+    "timestamp": "ISO-8601",
+    "payload": {}
+}
+
+The payload must contain only fields required by the receiving client.
+
+Never broadcast sensitive customer or rider information to unauthorized connections.
+
+## Expected live synchronization
+
+When a customer places an order:
+
+- Admin immediately sees the new order.
+- Restaurant immediately receives the order.
+
+When the restaurant accepts:
+
+- Customer sees confirmation.
+- Admin sees updated status.
+
+When a rider is assigned:
+
+- Rider sees the offer.
+- Customer sees rider assignment after acceptance.
+- Admin sees the assignment.
+
+When the rider picks up:
+
+- Customer tracking updates.
+- Admin updates.
+- Restaurant can see pickup completion.
+
+When rider location changes:
+
+- Customer map moves.
+- Admin operational map moves.
+
+When delivery completes:
+
+- Customer sees successful delivery.
+- Rider sees delivery completed.
+- Earnings update.
+- Admin sees completed order.
+
+All these updates must be generated by actual backend state changes.
+
+Do not simulate synchronization using independent JavaScript timers.
+
+## Reliability
+
+Implement:
+
+- WebSocket reconnection.
+- Connection cleanup.
+- Event authorization.
+- Event validation.
+- Duplicate event handling.
+- Client state recovery after reconnect.
+- REST API fallback to retrieve current order state.
+- Event timestamps and unique IDs.
+
+If Redis is already configured, use Redis Pub/Sub or an appropriate messaging layer for multi-process WebSocket broadcasting.
+
+If the application runs as a single process, a well-designed in-memory connection manager is acceptable for the MVP.
+
+Do not introduce Redis solely for appearance.
+
+For critical state-changing operations, persist the database transaction before broadcasting the corresponding event.
+
+---
+
+# PHASE 10: INTELLIGENT RIDER DISPATCH ENGINE
+
+Build a separate backend Dispatch Service.
+
+It should not exist only in frontend logic.
+
+## Rider eligibility
+
+Only consider riders that satisfy:
+
+- Account active.
+- Verification approved.
+- Online.
+- Location sufficiently recent.
+- Not currently unavailable.
+- Under configured capacity.
+- Vehicle appropriate for delivery.
+
+## Rider scoring
+
+Implement a transparent weighted scoring system.
+
+Example:
+
+SCORE = 0.55 * NORMALIZED_PICKUP_TIME
+      + 0.30 * NORMALIZED_ACTIVE_WORKLOAD
+      + 0.15 * VEHICLE_SUITABILITY_PENALTY
+
+Lowest eligible score wins.
+
+Keep weights configurable.
+
+Use road ETA where available; otherwise use clearly identified distance-based approximation.
+
+Record why the rider was selected.
+
+For simultaneous orders, use transaction locks, uniqueness constraints or an atomic claim operation.
+
+Prevent race conditions where two customers' orders get assigned to the same unavailable rider.
+
+## Assignment retry strategy
+
+- Attempt first eligible rider.
+- If rejected, offer to next rider.
+- Handle timeout.
+- Limit repeated offers.
+- Prevent duplicate assignments.
+- Log all decisions.
+- Escalate to Admin if no eligible rider is found.
+
+Admin should be able to manually override assignment where authorized.
+
+---
+
+# PHASE 11: AI DELIVERY ETA INTEGRATION
+
+Preserve the existing FoodFlow AI machine-learning implementation if present.
+
+Inspect existing models, feature preprocessing, training data and prediction APIs before modifying anything.
+
+The ETA engine should account for:
+
+- Restaurant preparation time.
+- Restaurant workload.
+- Road distance.
+- Route duration.
+- Traffic condition where genuinely available.
+- Time of day.
+- Day of week.
+- Weather where available.
+- Rider pickup distance.
+- Remaining delivery distance.
+- Model version.
+- Uncertainty range.
+
+Use the actual trained ML model when available.
+
+If the trained model is unavailable or input data is incomplete, use a documented fallback estimation formula.
+
+Do not generate arbitrary random predictions.
+
+Do not claim live traffic when only static route information is available.
+
+Separate these calculations:
+
+1. Preparation estimate.
+2. Rider arrival at restaurant estimate.
+3. Pickup wait estimate.
+4. Restaurant-to-customer travel estimate.
+5. Final delivery ETA.
+
+Display an ETA range using validation residuals or another defensible uncertainty method.
+
+Each prediction must store:
+
+- Predicted ETA.
+- Lower bound.
+- Upper bound.
+- Prediction source.
+- Model version.
+- Prediction timestamp.
+- Actual delivery time when available.
+
+## Predictive delay detection
+
+When updated conditions cause estimated delivery time to exceed the promised window:
+
+- Create a delay event.
+- Recalculate ETA.
+- Evaluate recovery options.
+- Notify the customer.
+- Show the delay in Admin.
+- Record the recovery recommendation.
+
+If the rider has not picked up the food, reassignment may be recommended if it genuinely improves the expected delivery outcome.
+
+After pickup, avoid automatic rider transfer in the MVP.
+
+Explain why the ETA changed.
+
+---
+
+# PHASE 12: LIVE LOCATION AND MAP INTEGRATION
+
+Integrate the existing map system where possible.
+
+Support:
+
+- Restaurant coordinates.
+- Customer delivery coordinates.
+- Rider current coordinates.
+- Route geometry.
+- Remaining distance.
+- Estimated arrival.
+
+If browser/mobile geolocation is available:
+
+- Ask rider permission.
+- Capture location only when the rider is online and an active delivery or permitted location-sharing session exists.
+- Validate and rate-limit updates.
+- Record location freshness.
+
+If GPS is unavailable, implement a controlled demo simulator.
+
+A simulator must:
+
+- Use a predefined route.
+- Move the marker along route coordinates.
+- Publish updates through the same backend event pipeline.
+- Be explicitly labelled DEMO/SIMULATED.
+- Stop when the order completes.
+
+Never make a simulated location look like actual hardware GPS data.
+
+Do not claim that OSRM provides live traffic.
+
+Use an adapter for routing services to allow future integration with real traffic-aware routing APIs.
+
+---
+
+# PHASE 13: ADMIN CONSOLE INTEGRATION
+
+The Admin Console is already implemented.
+
+Preserve its existing structure, pages, permissions and functionality.
+
+Extend it only where required to support the new Customer and Rider workflows.
+
+Add or integrate these sections if they do not already exist:
+
+## Order management
+
+- All orders.
+- New orders.
+- Pending confirmation.
+- Preparing.
+- Ready for pickup.
+- Rider assigned.
+- On the way.
+- Delivered.
+- Cancelled.
+- Delayed.
+
+## Rider management
+
+- Registered riders.
+- Approval status.
+- Online/offline status.
+- Current assignment.
+- Location freshness.
+- Completed deliveries.
+- Ratings.
+- Earnings summary.
+
+## Live operations
+
+Show:
+
+- Active orders.
+- Available riders.
+- Assigned riders.
+- Unassigned orders.
+- Delayed orders.
+- Active routes.
+- Failed assignment attempts.
+
+## Manual dispatch
+
+Allow an authorized Admin to:
+
+- View eligible riders.
+- View assignment score.
+- View pickup estimates.
+- Assign a rider manually.
+- Record the assignment action.
+- Send the assignment event.
+
+Do not let Admin manually bypass essential delivery state validation.
+
+## Analytics
+
+Show:
+
+- Total orders.
+- Completed orders.
+- Cancelled orders.
+- Active orders.
+- Average preparation time.
+- Average delivery time.
+- ETA prediction error.
+- On-time delivery rate.
+- Rider utilization.
+- Restaurant performance.
+
+Use actual database-derived statistics.
+
+---
+
+# PHASE 14: NOTIFICATION SYSTEM
+
+Implement centralized notifications.
+
+Channels:
+
+1. In-app notifications.
+2. Real-time WebSocket notification events.
+3. Optional email/SMS integration if credentials exist.
+
+Customer notifications:
+
+- Order placed.
+- Restaurant accepted.
+- Food preparing.
+- Rider assigned.
+- Food picked up.
+- ETA changed.
+- Delivery delayed.
+- Food delivered.
+- Order cancelled.
+
+Rider notifications:
+
+- New delivery request.
+- Request expired.
+- Assignment accepted.
+- Order ready.
+- Delivery update.
+- Reassignment or cancellation.
+
+Restaurant notifications:
+
+- Incoming order.
+- Order accepted by customer-facing workflow.
+- Order cancellation.
+- Rider arrived.
+- Food pickup completed.
+
+Admin notifications:
+
+- New order.
+- No riders available.
+- Delayed delivery.
+- Assignment failed.
+- Critical payment/order issue.
+
+Store notification records when appropriate.
+
+Ensure the system does not send duplicate notifications for repeated event delivery.
+
+---
+
+# PHASE 15: PREMIUM UI/UX DESIGN REQUIREMENTS
+
+Create a production-quality interface.
+
+Use the existing design system, branding and components.
+
+If the existing project uses React and Tailwind CSS, extend them.
+
+Use Framer Motion only where it improves the experience.
+
+The three main interfaces must be visually distinct while sharing one consistent FoodFlow design language.
+
+## Customer UI direction
+
+Build a modern food marketplace.
+
+Required elements:
+
+- Beautiful food cards.
+- High-quality restaurant images.
+- Search and filters.
+- Sticky navigation where useful.
+- Animated cart.
+- Responsive menu.
+- Attractive checkout.
+- Live order tracking map.
+- Status timeline.
+- Smooth loading skeletons.
+- Toast notifications.
+- Responsive mobile layout.
+
+## Rider UI direction
+
+Build a mobile-first delivery application.
+
+Required elements:
+
+- Prominent Online/Offline toggle.
+- New delivery request card.
+- Accept/Reject interaction.
+- Live map.
+- Active delivery panel.
+- Pickup and delivery actions.
+- Earnings cards.
+- Delivery history.
+- Profile screen.
+- Mobile-friendly navigation.
+
+Use large touch targets and clear delivery states.
+
+## Admin integration
+
+Do not introduce a competing visual system.
+
+Maintain the existing Admin Console's visual language.
+
+## Global design rules
+
+- Responsive at desktop, tablet and mobile sizes.
+- Consistent spacing.
+- Consistent typography.
+- Accessible color contrast.
+- Clear loading states.
+- Clear error states.
+- Clear empty states.
+- No broken images.
+- No overflowing cards.
+- No placeholder links.
+- No fake buttons.
+- No non-functional interactions.
+
+Use realistic seeded images and data only where appropriate.
+
+---
+
+# PHASE 16: SECURITY AND BUSINESS VALIDATION
+
+Security is mandatory.
+
+Implement:
+
+- Authentication on protected endpoints.
+- Role-based authorization.
+- Ownership validation.
+- Pydantic input validation.
+- Safe error handling.
+- Rate limiting for sensitive actions where appropriate.
+- Secure password handling using the existing authentication approach.
+- WebSocket authentication.
+- Delivery assignment race-condition prevention.
+- Server-side pricing calculations.
+- Server-side payment status verification.
+- Safe handling of customer addresses and phone numbers.
+
+Important rules:
+
+- Customer cannot update order status directly.
+- Rider cannot complete another rider's assignment.
+- Restaurant cannot change another restaurant's orders.
+- Rider cannot self-approve verification.
+- Customer cannot access another customer's tracking.
+- A delivered order cannot return to preparing.
+- A picked-up order cannot be cancelled using an ordinary cancellation endpoint without the appropriate exception workflow.
+- A rider cannot be assigned to conflicting deliveries beyond configured capacity.
+
+Maintain an immutable order event history for operational accountability.
+
+---
+
+# PHASE 17: TESTING AND QUALITY ASSURANCE
+
+Do not finish after the dashboards visually render.
+
+Test the complete business workflow.
+
+## Backend tests
+
+Test:
+
+- Authentication and roles.
+- Restaurant listing.
+- Menu retrieval.
+- Cart validation.
+- Order creation.
+- Pricing calculations.
+- Restaurant acceptance.
+- Restaurant rejection.
+- Rider online/offline.
+- Rider discovery.
+- Offer acceptance.
+- Offer rejection.
+- Assignment expiry.
+- Concurrent assignment prevention.
+- Pickup validation.
+- Delivery completion.
+- Earnings.
+- ETA calculation.
+- Cancellation rules.
+- Unauthorized data access.
+
+## Real-time tests
+
+Verify:
+
+- Customer receives order confirmation.
+- Admin receives new order event.
+- Restaurant receives incoming order event.
+- Rider receives assignment offer.
+- Customer receives rider assignment event.
+- Customer receives tracking updates.
+- Admin receives delivery status changes.
+- Reconnection retrieves current order state.
+- Unauthorized WebSocket connections cannot subscribe.
+
+## Frontend tests
+
+Verify:
+
+- Customer can browse and order food.
+- Customer can edit cart.
+- Customer can complete checkout.
+- Customer can track delivery.
+- Rider can go online/offline.
+- Rider can accept or reject requests.
+- Rider can complete the pickup and delivery process.
+- Existing Admin Console remains operational.
+
+## End-to-end scenario
+
+Create an automated test or reliable repeatable manual test:
+
+1. Login as customer.
+2. Select restaurant.
+3. Add food.
+4. Complete checkout.
+5. Confirm order in restaurant interface.
+6. Confirm order appears in Admin.
+7. Login as eligible rider.
+8. Receive delivery offer.
+9. Accept assignment.
+10. Verify Customer sees assigned rider.
+11. Update rider location.
+12. Verify Customer map updates.
+13. Mark food picked up.
+14. Mark delivery completed.
+15. Verify customer order history.
+16. Verify rider earnings.
+17. Verify Admin analytics.
+
+All three dashboards must display consistent information.
+
+---
+
+# PHASE 18: SEED DATA AND DEMONSTRATION MODE
+
+Provide a script for self-generated demonstration data.
+
+Create:
+
+- 8–10 restaurants.
+- 5–10 food items per restaurant.
+- 5–8 rider accounts.
+- 5 customer accounts.
+- Example addresses and coordinates.
+- Example completed orders.
+- Example pending orders.
+- Example restaurants with different preparation times.
+
+Use fictional restaurants and fictional accounts.
+
+Do not use Accurate Background internal datasets or confidential data.
+
+Provide test credentials for each role in a local-only demo configuration or document how to create accounts.
+
+Never commit production passwords or real secrets.
+
+Make sure the entire order lifecycle can be demonstrated with seeded data.
+
+Build a controlled simulation mode:
+
+- Simulate rider GPS.
+- Simulate traffic increase.
+- Simulate restaurant preparation delays.
+- Simulate a rider rejecting an offer.
+- Simulate successful reassignment.
+- Simulate order completion.
+
+Every simulated state must still go through backend validation and event publication.
+
+Clearly mark demo data and simulated location/traffic.
+
+---
+
+# PHASE 19: DOCUMENTATION AND PROJECT MAINTENANCE
+
+Update project documentation.
+
+Provide:
+
+1. Updated architecture explanation.
+2. Backend folder structure.
+3. Frontend folder structure.
+4. Database schema documentation.
+5. API endpoint reference.
+6. WebSocket event reference.
+7. Role and permission matrix.
+8. Order lifecycle explanation.
+9. Rider assignment explanation.
+10. ETA model integration explanation.
+11. Environment setup.
+12. Database migration commands.
+13. Seed data commands.
+14. Frontend run commands.
+15. Backend run commands.
+16. Testing commands.
+17. Demo credentials and demo instructions.
+
+Use environment variables for secrets and external API configuration.
+
+Provide an `.env.example` containing placeholders only.
+
+Do not overwrite the user's actual `.env` file.
+
+---
+
+# PHASE 20: IMPLEMENTATION ORDER
+
+Execute development in the following phases.
+
+PHASE A:
+Audit the current repository, admin functionality, auth, database and existing services.
+
+PHASE B:
+Implement or extend database models, migrations, schemas and role permissions.
+
+PHASE C:
+Implement customer marketplace APIs and customer dashboard.
+
+PHASE D:
+Implement rider APIs, assignment workflow and rider dashboard.
+
+PHASE E:
+Implement restaurant order acceptance and preparation operations if missing.
+
+PHASE F:
+Connect all dashboards through authenticated WebSockets.
+
+PHASE G:
+Connect AI ETA and dispatch engine.
+
+PHASE H:
+Integrate tracking, maps, customer notifications and admin events.
+
+PHASE I:
+Implement seed data and controlled demo simulations.
+
+PHASE J:
+Run backend, frontend, security and end-to-end tests.
+
+PHASE K:
+Fix all integration and UI bugs and update documentation.
+
+Do not stop after creating pages.
+
+Do not return only a proposed plan.
+
+Implement the functionality incrementally, and validate each phase before proceeding.
+
+When a feature depends on external credentials, create a clear adapter and working local/demo fallback rather than blocking the entire project.
+
+---
+
+# FINAL ACCEPTANCE CRITERIA
+
+The implementation will be considered successful only when all the following are true:
+
+[ ] Existing Admin Console is preserved.
+
+[ ] Customer can register/login through the existing authentication system.
+
+[ ] Customer can browse restaurants.
+
+[ ] Customer can search and filter food.
+
+[ ] Customer can view restaurant menus.
+
+[ ] Customer can add items to cart.
+
+[ ] Customer can complete checkout.
+
+[ ] Order is stored in the shared PostgreSQL database.
+
+[ ] Restaurant receives the new order.
+
+[ ] Restaurant can accept and prepare orders.
+
+[ ] Backend can find eligible riders.
+
+[ ] Rider receives an actual backend-generated delivery offer.
+
+[ ] Rider can accept or reject the delivery.
+
+[ ] Duplicate rider assignments are prevented.
+
+[ ] Admin sees new orders immediately.
+
+[ ] Customer sees rider assignment immediately.
+
+[ ] Rider can update pickup status.
+
+[ ] Customer tracking page receives WebSocket updates.
+
+[ ] Rider location is updated and displayed.
+
+[ ] AI ETA is integrated with a defensible fallback.
+
+[ ] Delay detection works.
+
+[ ] Rider can complete delivery.
+
+[ ] Customer order history is updated.
+
+[ ] Rider earnings are updated.
+
+[ ] Admin analytics are updated.
+
+[ ] Customer, Rider and Admin show consistent order status.
+
+[ ] All protected resources enforce role-based authorization.
+
+[ ] No major dashboard functionality depends on hardcoded mock data.
+
+[ ] Tests cover the critical end-to-end delivery flow.
+
+[ ] Project documentation and setup instructions are updated.
+
+---
+
+# FINAL INSTRUCTION
+
+Build FoodFlow AI as a complete, interconnected food delivery marketplace.
+
+The most important engineering requirement is:
+
+**ONE CUSTOMER ORDER → ONE SHARED DATABASE RECORD → ONE RESTAURANT WORKFLOW → ONE VALID RIDER ASSIGNMENT → REAL-TIME CUSTOMER TRACKING → ONE COMPLETED DELIVERY RECORD.**
+
+The Customer Dashboard, Rider Dashboard, Restaurant Operations and existing Admin Console must all reflect the same underlying order lifecycle.
+
+Prioritize working business logic, reliable backend integration, real-time synchronization, robust authorization and polished user experience.
+
+Do not compromise backend correctness for frontend appearance.
+
+Do not compromise the existing Admin Console for new functionality.
+
+Do not implement fake real-time behavior.
+
+Do not create duplicate systems.
+
+Make the application modular, maintainable, testable, responsive and ready for a hackathon demonstration.
+
+At the end, provide a clear report of:
+
+- What was already present.
+- What was implemented.
+- What existing components were reused.
+- What database migrations were added.
+- What APIs were created or modified.
+- What WebSocket events were implemented.
+- What frontend pages were completed.
+- What tests passed.
+- What external integrations remain optional.
+- How to run and demonstrate the complete application.
+
+Start by auditing the repository, then implement the full solution.

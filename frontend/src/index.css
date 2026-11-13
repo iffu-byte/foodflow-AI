@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: #f3eee4;
+  color: #1c1917;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  font-feature-settings: "ss01" on, "cv11" on;
+}
+
+.font-serif {
+  font-family:
+    "Iowan Old Style",
+    "Palatino Linotype",
+    "Book Antiqua",
+    Palatino,
+    Georgia,
+    serif;
+}
+
+::selection {
+  background: rgba(217, 79, 43, 0.22);
+  color: #1c1917;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 113, 108, 0.35) transparent;
+}
+
+@keyframes ff-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+main > * {
+  animation: ff-rise 360ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  main > * {
+    animation: none;
+  }
+}
