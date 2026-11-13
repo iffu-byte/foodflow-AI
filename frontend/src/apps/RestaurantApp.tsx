@@ -40,8 +40,11 @@ import {
   StatusPill,
   type NavItem,
 } from "../components/market";
+import { PortionStudio } from "./restaurant/PortionStudio";
+import { RescueBoard } from "./restaurant/RescueBoard";
+import { TrustBoard } from "./restaurant/TrustBoard";
 
-type Tab = "board" | "menu" | "insights";
+type Tab = "board" | "menu" | "portions" | "trust" | "rescue" | "insights";
 type SyncStatus = "connecting" | "live" | "reconnecting";
 
 type RestaurantStreamMessage =
@@ -266,6 +269,9 @@ export default function RestaurantApp({
   const nav: NavItem[] = [
     { id: "board", label: "Order board", badge: newOrders.length },
     { id: "menu", label: "Menu" },
+    { id: "portions", label: "Portion Studio" },
+    { id: "trust", label: "Trust" },
+    { id: "rescue", label: "Rescue" },
     { id: "insights", label: "Insights" },
   ];
 
@@ -326,6 +332,19 @@ export default function RestaurantApp({
           }}
         />
       ) : null}
+
+      {tab === "portions" ? (
+        <PortionStudio
+          menu={menu}
+          onItemUpdated={(next) =>
+            setMenu((rows) => rows.map((row) => (row.id === next.id ? next : row)))
+          }
+        />
+      ) : null}
+
+      {tab === "trust" ? <TrustBoard /> : null}
+
+      {tab === "rescue" ? <RescueBoard /> : null}
 
       {tab === "insights" ? (
         <Insights

@@ -31,6 +31,7 @@ export function CheckoutView({
   const [phone, setPhone] = useState("");
   const [instructions, setInstructions] = useState("");
   const [payment, setPayment] = useState<"COD" | "UPI_DEMO">("UPI_DEMO");
+  const [mode, setMode] = useState<"solo" | "shared">("solo");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +73,9 @@ export function CheckoutView({
   if (loading) return <Spinner label="Preparing checkout" />;
 
   const selectedAddress = addresses.find((address) => address.id === selected) ?? null;
+  // Mirrors the server rule: sharing a rider takes up to Rs 15 off the delivery fee.
+  const sharedSaving = Math.min(15, Number(cart.delivery_fee));
+  const shownTotal = Number(cart.total) - (mode === "shared" ? sharedSaving : 0);
 
   const submit = async () => {
     if (!selectedAddress) {
@@ -87,6 +91,7 @@ export function CheckoutView({
         instructions: instructions || undefined,
         payment_method: payment,
         coupon_code: cart.coupon_code,
+        delivery_mode: mode,
       });
       onOrderPlaced();
       navigate(`/customer/orders/${order.id}`);
@@ -225,6 +230,53 @@ export function CheckoutView({
           </section>
 
           <section className="rounded-[24px] border border-stone-900/10 bg-[#fffcf6]/70 p-4">
+            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-stone-500">
+              Delivery
+            </p>
+            <h3 className="mt-1 font-serif text-[21px] italic">Your rider, your choice</h3>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {[
+                {
+                  id: "solo" as const,
+                  label: "Solo rider",
+                  hint: "Straight to you. Never clubbed with another order.",
+                  glyph: "→",
+                },
+                {
+                  id: "shared" as const,
+                  label: `Shared ride · save ${formatCurrency(sharedSaving)}`,
+                  hint: "May ride with one same-route order from this kitchen: about 4-12 min slower, one less trip on the road.",
+                  glyph: "⇉",
+                },
+              ].map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setMode(option.id)}
+                  className={`flex items-start gap-3 rounded-2xl border p-3 text-left transition ${
+                    mode === option.id
+                      ? "border-[#1f5b46] bg-[#1f5b46]/[0.06] ring-1 ring-[#1f5b46]/25"
+                      : "border-stone-900/10 bg-white/40 hover:bg-white"
+                  }`}
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1f5b46] text-[13px] text-white">
+                    {option.glyph}
+                  </span>
+                  <span>
+                    <span className="block text-[12px] font-semibold">{option.label}</span>
+                    <span className="text-[10px] leading-snug text-stone-500">{option.hint}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+            {mode === "shared" && sharedSaving === 0 ? (
+              <p className="mt-2 text-[10px] text-stone-500">
+                Delivery is already free on this order, so sharing saves no money — only a trip.
+              </p>
+            ) : null}
+          </section>
+
+          <section className="rounded-[24px] border border-stone-900/10 bg-[#fffcf6]/70 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-stone-500">
@@ -296,6 +348,12 @@ export function CheckoutView({
               <span>Delivery</span>
               <span>{formatCurrency(cart.delivery_fee)}</span>
             </div>
+            {mode === "shared" && sharedSaving > 0 ? (
+              <div className="flex justify-between font-semibold text-[#1f5b46]">
+                <span>Shared-ride saving</span>
+                <span>− {formatCurrency(sharedSaving)}</span>
+              </div>
+            ) : null}
             {Number(cart.discount) > 0 ? (
               <div className="flex justify-between font-semibold text-[#1f5b46]">
                 <span>{cart.coupon_code}</span>
@@ -308,7 +366,7 @@ export function CheckoutView({
             </div>
             <div className="flex items-center justify-between border-t border-stone-900/10 pt-3">
               <span className="font-semibold">Total</span>
-              <span className="text-[19px] font-bold">{formatCurrency(cart.total)}</span>
+              <span className="text-[19px] font-bold">{formatCurrency(shownTotal)}</span>
             </div>
           </div>
           <Btn

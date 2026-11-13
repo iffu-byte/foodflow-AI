@@ -57,6 +57,14 @@ class MarketOrderOut(BaseModel):
     delay_flags: list[str]
     reassign_count: int
     can_review: bool = False
+    delivery_otp: str | None = None
+    delivery_mode: str = "solo"
+    shared_saving: Decimal = Decimal("0.00")
+    batch_id: UUID | None = None
+    batch_sequence: int | None = None
+    compensation: Decimal = Decimal("0.00")
+    delivery_proof: dict | None = None
+    otp_attempts: int = 0
 
 
 class AddressIn(BaseModel):
@@ -91,6 +99,7 @@ class ProfileOut(BaseModel):
     home_lng: float
     budget_pref: str | None
     diet_pref: str | None
+    daily_kcal_goal: int | None = None
 
 
 class ProfileUpdate(BaseModel):
@@ -100,11 +109,13 @@ class ProfileUpdate(BaseModel):
     diet_pref: str | None = Field(default=None, max_length=40)
     home_lat: float | None = Field(default=None, ge=-90, le=90)
     home_lng: float | None = Field(default=None, ge=-180, le=180)
+    daily_kcal_goal: int | None = Field(default=None, ge=800, le=6000)
 
 
 class CartItemIn(BaseModel):
     menu_item_id: UUID
     qty: int = Field(default=1, ge=1, le=20)
+    rescue_listing_id: UUID | None = None
 
 
 class CartItemUpdate(BaseModel):
@@ -120,6 +131,11 @@ class CartLineOut(BaseModel):
     veg: bool
     available: bool
     line_total: Decimal
+    original_price: Decimal | None = None
+    rescue_listing_id: UUID | None = None
+    rescue_ends_at: datetime | None = None
+    kcal: int | None = None
+    protein_g: float | None = None
 
 
 class CartRestaurantOut(BaseModel):
@@ -142,6 +158,8 @@ class CartOut(BaseModel):
     tax: Decimal
     total: Decimal
     coupon_code: str | None
+    nutrition: dict | None = None
+    rescue_saving: Decimal = Decimal("0.00")
 
 
 class CouponIn(BaseModel):
@@ -161,6 +179,7 @@ class CheckoutIn(BaseModel):
     instructions: str | None = Field(default=None, max_length=500)
     payment_method: Literal["COD", "UPI_DEMO", "RAZORPAY"] = "COD"
     coupon_code: str | None = Field(default=None, max_length=30)
+    delivery_mode: Literal["solo", "shared"] = "solo"
 
 
 class RazorpayPaymentVerifyIn(BaseModel):
@@ -173,6 +192,7 @@ class ReviewIn(BaseModel):
     restaurant_rating: int = Field(ge=1, le=5)
     rider_rating: int | None = Field(default=None, ge=1, le=5)
     comment: str | None = Field(default=None, max_length=1000)
+    quantity_feedback: Literal["as_described", "more", "less", "much_less"] | None = None
 
 
 class ReviewOut(BaseModel):
@@ -230,12 +250,15 @@ class OfferOut(BaseModel):
     estimated_earnings: Decimal
     expires_at: datetime
     offered_at: datetime
+    batched_with: str | None = None
+    batch_extra_km: float | None = None
 
 
 class AssignmentActionOut(BaseModel):
     assignment_id: UUID
     status: str
     order: MarketOrderOut
+    batch: list[dict] | None = None
 
 
 class OfferActionOut(BaseModel):
@@ -245,6 +268,10 @@ class OfferActionOut(BaseModel):
 
 class DeliveryActionIn(BaseModel):
     reason: str | None = Field(default=None, max_length=255)
+
+
+class DeliveryCompleteIn(DeliveryActionIn):
+    otp: str | None = Field(default=None, max_length=6)
 
 
 class EarningsEntryOut(BaseModel):
@@ -329,6 +356,15 @@ class RestaurantMenuItemOut(MenuItemOut):
     available: bool
     description: str
     image_url: str | None
+    portion_grams: int | None = None
+    portion_serves: int | None = None
+    portion_pieces: int | None = None
+    portion_method: str = "unknown"
+    portion_confidence: float | None = None
+    portion_photo_url: str | None = None
+    portion_verified_at: datetime | None = None
+    nutrition: dict | None = None
+    rescue: dict | None = None
 
 
 class RestaurantBrowseOut(BaseModel):
@@ -345,6 +381,14 @@ class RestaurantBrowseOut(BaseModel):
     image_url: str | None
     is_active: bool
     distance_km: float | None = None
+    kitchen_type: str = "dine_in"
+    price_parity: bool = True
+    trust_score: int | None = None
+    trust_grade: str | None = None
+    trust_badges: list[str] = []
+    trust_warnings: list[str] = []
+    rescue_live: int = 0
+    matching_dishes: list[dict] = []
 
 
 class RestaurantAnalyticsOut(BaseModel):

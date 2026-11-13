@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  addCartItem,
   ApiError,
   browseRestaurants,
+  getProfile,
   getMyOrders,
   getRestaurantRecommendations,
   reorder,
@@ -10,6 +12,7 @@ import {
   type BrowseRestaurant,
   type Cart,
   type MarketOrder,
+  type RescueDeal,
   type RestaurantRecommendation,
 } from "../../lib/api";
 import {
@@ -26,6 +29,7 @@ import {
   SimBadge,
   Spinner,
 } from "../../components/market";
+import { RescueStrip, TrustBadge } from "../../components/trust";
 
 const cuisines = [
   { id: "", label: "Everything" },
@@ -53,7 +57,12 @@ export function Home({
   const [cuisine, setCuisine] = useState("");
   const [vegOnly, setVegOnly] = useState(false);
   const [topRated, setTopRated] = useState(false);
-  const [sort, setSort] = useState<"recommended" | "rating" | "fastest">("recommended");
+  const [sort, setSort] = useState<"recommended" | "rating" | "fastest" | "trust">(
+    "recommended",
+  );
+  const [home, setHome] = useState<{ lat: number; lng: number } | null>(null);
+  const [rescuing, setRescuing] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reordering, setReordering] = useState<string | null>(null);
@@ -68,6 +77,9 @@ export function Home({
         cuisine: cuisine || undefined,
         veg: vegOnly || undefined,
         min_rating: topRated ? 4 : undefined,
+        lat: home?.lat,
+        lng: home?.lng,
+        sort: sort === "trust" ? "trust" : undefined,
       })
         .then((rows) => {
           if (!cancelled) setRestaurants(rows);
@@ -85,7 +97,39 @@ export function Home({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [q, cuisine, vegOnly, topRated]);
+  }, [q, cuisine, vegOnly, topRated, home, sort]);
+
+  useEffect(() => {
+    void getProfile()
+      .then((profile) => setHome({ lat: profile.home_lat, lng: profile.home_lng }))
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const rescue = async (deal: RescueDeal) => {
+    setRescuing(deal.id);
+    setError(null);
+    try {
+      const cart = await addCartItem(deal.menu_item_id, 1, deal.id);
+      onCartUpdated(cart);
+      setToast(`${deal.name} rescued at ${formatCurrency(deal.current_price)}`);
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.status === 409
+          ? "Your cart has another kitchen's dishes. Empty it first to rescue this meal."
+          : err instanceof ApiError
+            ? err.message
+            : "Could not add this deal.",
+      );
+    } finally {
+      setRescuing(null);
+    }
+  };
 
   useEffect(() => {
     void getMyOrders()
@@ -233,6 +277,13 @@ export function Home({
         </div>
       </section>
 
+      <RescueStrip
+        lat={home?.lat}
+        lng={home?.lng}
+        onAdd={(deal) => void rescue(deal)}
+        busyId={rescuing}
+      />
+
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         {[
           [`${restaurants.length || 30}`, "kitchens live"],
@@ -341,11 +392,14 @@ export function Home({
             <select
               value={sort}
               onChange={(event) =>
-                setSort(event.target.value as "recommended" | "rating" | "fastest")
+                setSort(
+                  event.target.value as "recommended" | "rating" | "fastest" | "trust",
+                )
               }
               className="rounded-full border border-stone-900/15 bg-white/40 px-3 py-1.5 text-[11px] font-semibold text-stone-600 outline-none"
             >
-              <option value="recommended">Recommended</option>
+              <option value="recommended">Nearest</option>
+              <option value="trust">Most trusted</option>
               <option value="rating">Top rated</option>
               <option value="fastest">Fastest</option>
             </select>
@@ -369,6 +423,9 @@ export function Home({
           ))}
         </div>
 
+        <p className="mt-1 text-[10px] text-stone-400">
+          No paid placement: kitchens are ordered by distance, trust or rating — your choice.
+        </p>
         {error ? <div className="mt-3"><Notice>{error}</Notice></div> : null}
         {loading ? <Spinner label="Setting the tables" /> : null}
         {!loading && sorted.length === 0 ? (
@@ -413,10 +470,42 @@ export function Home({
                       {restaurant.cuisine.map((entry) => entry.replaceAll("_", " ")).join(" · ")}
                     </p>
                   </div>
-                  <span className="flex shrink-0 items-center gap-1 rounded-full bg-[#1f5b46] px-2 py-1 text-[10px] font-bold text-white">
-                    ★ {Number(restaurant.rating).toFixed(1)}
-                  </span>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="flex items-center gap-1 rounded-full bg-stone-900/[0.07] px-2 py-1 text-[10px] font-bold text-stone-700">
+                      ★ {Number(restaurant.rating).toFixed(1)}
+                    </span>
+                    <TrustBadge score={restaurant.trust_score} grade={restaurant.trust_grade} />
+                  </div>
                 </div>
+                {restaurant.trust_warnings?.length || restaurant.rescue_live ? (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {restaurant.rescue_live ? (
+                      <span className="rounded-full bg-[#1f5b46] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white">
+                        {restaurant.rescue_live} rescue deal{restaurant.rescue_live > 1 ? "s" : ""}
+                      </span>
+                    ) : null}
+                    {restaurant.trust_warnings?.slice(0, 2).map((warning) => (
+                      <span
+                        key={warning}
+                        className="rounded-full bg-rose-700/10 px-2 py-0.5 text-[9px] font-semibold text-rose-800"
+                      >
+                        ! {warning}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                {restaurant.matching_dishes?.length ? (
+                  <p className="mt-2 truncate text-[11px] font-semibold text-[#1f5b46]">
+                    {restaurant.matching_dishes
+                      .map(
+                        (dish) =>
+                          `${dish.name} ${formatCurrency(dish.price)}${
+                            dish.portion_grams ? ` · ${dish.portion_grams} g` : ""
+                          }`,
+                      )
+                      .join("  ·  ")}
+                  </p>
+                ) : null}
                 <p className="mt-2 line-clamp-2 text-[11px] leading-snug text-stone-500">
                   {restaurant.description}
                 </p>
@@ -434,6 +523,11 @@ export function Home({
           ))}
         </div>
       </section>
+      {toast ? (
+        <div className="fixed bottom-5 right-5 z-50 rounded-2xl bg-stone-900 px-4 py-3 text-[12px] font-medium text-[#f8f3e9] shadow-2xl">
+          {toast}
+        </div>
+      ) : null}
     </div>
   );
 }

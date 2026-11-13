@@ -31,3 +31,6 @@ pgdata/
 models/
 artifacts/
 osrm-data/
+
+# Uploaded kitchen and portion photos from local runs
+backend/media/

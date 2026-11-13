@@ -36,6 +36,7 @@ import {
   Btn,
   Empty,
   MarketShell,
+  Modal,
   Notice,
   SimBadge,
   Spinner,
@@ -75,12 +76,13 @@ const actionByStatus: Record<
   PICKED_UP: {
     action: "arrived-customer",
     label: "I'm at the customer",
-    hint: "Confirm arrival at the doorstep.",
+    hint: "Confirm arrival at the doorstep. Works only within 400 m of the customer's pin.",
   },
   ARRIVED_AT_CUSTOMER: {
     action: "complete",
-    label: "Complete delivery",
-    hint: "Hand over the order and unlock today's earning.",
+    label: "Hand over with code",
+    hint: "Hand over the bag, then enter the 4-digit code the customer reads out. "
+      + "It only works within 150 m of their pin.",
   },
 };
 
@@ -101,6 +103,9 @@ export default function RiderApp({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpError, setOtpError] = useState<string | null>(null);
   const [deliveryTarget, setDeliveryTarget] = useState<{
     lat: number;
     lng: number;
@@ -263,14 +268,26 @@ export default function RiderApp({
     }
   };
 
-  const runAction = async () => {
+  const runAction = async (code?: string) => {
     if (!active) return;
     const next = actionByStatus[active.status];
     if (!next) return;
+    if (next.action === "complete" && !code) {
+      setOtp("");
+      setOtpError(null);
+      setOtpOpen(true);
+      return;
+    }
     setBusy("action");
     setError(null);
+    setOtpError(null);
     try {
-      const result = await riderAssignmentAction(active.assignment_id, next.action);
+      // Send a fresh position first so the geofence judges where you are now.
+      if (next.action === "arrived-customer" || next.action === "complete") {
+        await riderLocation.sendNow();
+      }
+      const result = await riderAssignmentAction(active.assignment_id, next.action, code);
+      setOtpOpen(false);
       if (result.status === "COMPLETED") {
         setActive(null);
         setTab("earnings");
@@ -281,7 +298,9 @@ export default function RiderApp({
       }
       void refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not update this delivery.");
+      const message = err instanceof ApiError ? err.message : "Could not update this delivery.";
+      if (code) setOtpError(message);
+      else setError(message);
     } finally {
       setBusy(null);
     }
@@ -377,6 +396,7 @@ export default function RiderApp({
           busy={busy}
           locationMode={riderLocation.mode}
           locationAccuracyM={riderLocation.accuracyM}
+          riderPosition={profile ? { lat: profile.lat, lng: profile.lng } : null}
           onAction={() => void runAction()}
           onPing={() => void pingNow()}
           onRetryGps={riderLocation.retryGps}
@@ -387,6 +407,35 @@ export default function RiderApp({
       {tab === "earnings" ? <EarningsView earnings={earnings} /> : null}
 
       {tab === "history" ? <HistoryView history={history} /> : null}
+
+      {otpOpen ? (
+        <Modal title="Enter the customer's delivery code" onClose={() => setOtpOpen(false)}>
+          <p className="text-[12px] text-stone-600">
+            Ask the customer for the 4-digit code shown in their app. Wrong codes are
+            counted; five wrong codes lock the order for support.
+          </p>
+          <input
+            autoFocus
+            inputMode="numeric"
+            maxLength={4}
+            value={otp}
+            onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 4))}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && otp.length === 4) void runAction(otp);
+            }}
+            className="mt-3 w-full rounded-2xl border border-stone-900/15 bg-white px-4 py-3 text-center font-mono text-[32px] tracking-[0.5em] outline-none focus:border-[#1f5b46]"
+            placeholder="• • • •"
+          />
+          {otpError ? <div className="mt-2"><Notice>{otpError}</Notice></div> : null}
+          <Btn
+            className="mt-3 w-full"
+            disabled={otp.length !== 4 || busy === "action"}
+            onClick={() => void runAction(otp)}
+          >
+            {busy === "action" ? "Checking…" : "Confirm handover"}
+          </Btn>
+        </Modal>
+      ) : null}
     </MarketShell>
   );
 }
@@ -776,6 +825,14 @@ function OffersView({
                   <h2 className="mt-0.5 font-serif text-[22px] italic leading-none">
                     {offer.restaurant_name}
                   </h2>
+                  {offer.batched_with ? (
+                    <p className="mt-1.5 inline-block rounded-full bg-[#f4b942] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-stone-900">
+                      Same-route drop · rides with {offer.batched_with}
+                      {offer.batch_extra_km !== null && offer.batch_extra_km !== undefined
+                        ? ` · +${offer.batch_extra_km} km`
+                        : ""}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="text-right">
                   <p className="font-serif text-[26px] leading-none text-[#f4b942]">
@@ -861,6 +918,7 @@ function DeliveryView({
   busy,
   locationMode,
   locationAccuracyM,
+  riderPosition,
   onAction,
   onPing,
   onRetryGps,
@@ -872,6 +930,7 @@ function DeliveryView({
   busy: string | null;
   locationMode: RiderLocationMode;
   locationAccuracyM: number | null;
+  riderPosition: { lat: number; lng: number } | null;
   onAction: () => void;
   onPing: () => void;
   onRetryGps: () => void;
@@ -895,6 +954,17 @@ function DeliveryView({
     ["COMPLETED", "Complete"],
   ];
   const currentIndex = steps.findIndex(([status]) => status === active.status);
+  const toDropM = riderPosition
+    ? Math.round(
+        Math.hypot(
+          (riderPosition.lat - active.order.drop_lat) * 111_320,
+          (riderPosition.lng - active.order.drop_lng) *
+            111_320 *
+            Math.cos((active.order.drop_lat * Math.PI) / 180),
+        ),
+      )
+    : null;
+  const onTheRoad = active.status === "PICKED_UP" || active.status === "ARRIVED_AT_CUSTOMER";
 
   return (
     <div className="space-y-5">
@@ -985,6 +1055,41 @@ function DeliveryView({
                 </p>
               ) : null}
             </div>
+
+            {active.batch && active.batch.length > 1 ? (
+              <div className="mt-4 rounded-2xl border border-[#1f5b46]/25 bg-[#1f5b46]/[0.06] p-3">
+                <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-[#1f5b46]">
+                  Shared ride · {active.batch.length} drops, in this order
+                </p>
+                <ol className="mt-1.5 space-y-1 text-[11px] text-stone-700">
+                  {active.batch.map((drop) => (
+                    <li key={drop.assignment_id} className="flex justify-between gap-2">
+                      <span>
+                        {drop.sequence}. {drop.order_number} · {drop.delivery_address ?? "pin"}
+                      </span>
+                      <span className="text-[9px] uppercase tracking-[0.08em] text-stone-500">
+                        {drop.status.replaceAll("_", " ").toLowerCase()}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ) : null}
+
+            {onTheRoad && toDropM !== null ? (
+              <div
+                className={`mt-4 rounded-2xl border p-3 text-[11px] ${
+                  toDropM <= 150
+                    ? "border-[#1f5b46]/30 bg-[#1f5b46]/[0.06] text-[#1f5b46]"
+                    : "border-stone-900/10 bg-stone-900/[0.03] text-stone-600"
+                }`}
+              >
+                <strong>{toDropM.toLocaleString()} m</strong> from the customer&apos;s pin ·{" "}
+                {toDropM <= 150
+                  ? "inside the handover zone"
+                  : "handover unlocks within 150 m"}
+              </div>
+            ) : null}
 
             {action ? (
               <div className="mt-4 rounded-2xl border border-[#d94f2b]/20 bg-[#d94f2b]/[0.05] p-4">

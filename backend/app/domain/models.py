@@ -1,11 +1,12 @@
 import uuid
-from datetime import UTC, datetime, time
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from enum import Enum
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -83,6 +84,7 @@ class Customer(Base):
     home_lng: Mapped[float] = mapped_column(Float)
     budget_pref: Mapped[str | None] = mapped_column(String(40))
     diet_pref: Mapped[str | None] = mapped_column(String(40))
+    daily_kcal_goal: Mapped[int | None] = mapped_column(Integer)
 
 
 class Restaurant(Base):
@@ -105,6 +107,14 @@ class Restaurant(Base):
     min_order_value: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"))
     delivery_fee: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("29.00"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Trust layer: what the customer can verify about the kitchen itself.
+    fssai_license: Mapped[str | None] = mapped_column(String(20))
+    fssai_valid_until: Mapped[date | None] = mapped_column(Date)
+    kitchen_type: Mapped[str] = mapped_column(String(20), default="dine_in")
+    price_parity: Mapped[bool] = mapped_column(Boolean, default=True)
+    google_place_id: Mapped[str | None] = mapped_column(String(160))
+    place_snapshot: Mapped[dict] = mapped_column(JSONB, default=dict)
+    place_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class MenuItem(Base):
@@ -124,6 +134,17 @@ class MenuItem(Base):
     description: Mapped[str] = mapped_column(String(500), default="")
     image_url: Mapped[str | None] = mapped_column(String(500))
     available: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Portion truth: declared or measured quantity shown before ordering.
+    portion_grams: Mapped[int | None] = mapped_column(Integer)
+    portion_serves: Mapped[int | None] = mapped_column(Integer)
+    portion_pieces: Mapped[int | None] = mapped_column(Integer)
+    portion_method: Mapped[str] = mapped_column(String(20), default="unknown")
+    portion_confidence: Mapped[float | None] = mapped_column(Float)
+    portion_photo_url: Mapped[str | None] = mapped_column(String(500))
+    portion_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ingredients: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    # Cached nutrition estimate (per 100 g plus provenance); computed once per dish.
+    nutrition: Mapped[dict] = mapped_column(JSONB, default=dict)
 
 
 class Rider(Base):
@@ -156,6 +177,7 @@ class Order(Base):
     __table_args__ = (
         Index("ix_orders_status", "status"),
         Index("ix_orders_customer", "customer_id"),
+        Index("ix_orders_batch", "batch_id"),
         CheckConstraint("total_price >= 0", name="ck_orders_total_price_non_negative"),
     )
 
@@ -194,6 +216,18 @@ class Order(Base):
     estimated_prep_min: Mapped[int | None] = mapped_column(Integer)
     actual_delivery_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     delivery_distance_km: Mapped[float | None] = mapped_column(Float)
+    # Proof of delivery: a door OTP plus a GPS geofence check at handover.
+    delivery_otp: Mapped[str | None] = mapped_column(String(6))
+    otp_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    delivery_proof: Mapped[dict] = mapped_column(JSONB, default=dict)
+    # Consent-based batching: "shared" orders may ride with a same-route order.
+    delivery_mode: Mapped[str] = mapped_column(String(10), default="solo")
+    shared_saving: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"))
+    batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    batch_sequence: Mapped[int | None] = mapped_column(Integer)
+    # Fair-delay accounting: who caused lateness and what the customer got back.
+    compensation: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"))
+    delay_attribution: Mapped[dict] = mapped_column(JSONB, default=dict)
 
     items: Mapped[list["OrderItem"]] = relationship(
         back_populates="order",
@@ -395,6 +429,9 @@ class CartItem(Base):
     )
     qty: Mapped[int] = mapped_column(Integer)
     added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    rescue_listing_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("rescue_listings.id", ondelete="SET NULL")
+    )
 
     cart: Mapped[Cart] = relationship(back_populates="items")
 
@@ -509,6 +546,7 @@ class Review(Base):
     restaurant_rating: Mapped[int] = mapped_column(Integer)
     rider_rating: Mapped[int | None] = mapped_column(Integer)
     comment: Mapped[str | None] = mapped_column(Text)
+    quantity_feedback: Mapped[str | None] = mapped_column(String(16))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -527,4 +565,87 @@ class Notification(Base):
         UUID(as_uuid=True), ForeignKey("orders.id", ondelete="CASCADE")
     )
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class KitchenPhoto(Base):
+    """A dated photo the restaurant takes of its own kitchen, shown to customers."""
+
+    __tablename__ = "kitchen_photos"
+    __table_args__ = (Index("ix_kitchen_photos_restaurant_taken", "restaurant_id", "taken_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    restaurant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("restaurants.id", ondelete="CASCADE")
+    )
+    url: Mapped[str] = mapped_column(String(500))
+    caption: Mapped[str] = mapped_column(String(160), default="")
+    taken_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RescueListing(Base):
+    """Surplus food offered before closing at a price that falls over time."""
+
+    __tablename__ = "rescue_listings"
+    __table_args__ = (
+        Index("ix_rescue_listings_status_ends", "status", "ends_at"),
+        CheckConstraint("qty_left >= 0", name="ck_rescue_listings_qty_left"),
+        CheckConstraint("floor_price > 0", name="ck_rescue_listings_floor_price"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    restaurant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("restaurants.id", ondelete="CASCADE"), index=True
+    )
+    menu_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("menu_items.id", ondelete="CASCADE")
+    )
+    qty_total: Mapped[int] = mapped_column(Integer)
+    qty_left: Mapped[int] = mapped_column(Integer)
+    original_price: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    start_price: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    floor_price: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(16), default="LIVE")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PrepLog(Base):
+    """How many portions of a dish the kitchen prepared today (input to the forecast)."""
+
+    __tablename__ = "prep_logs"
+    __table_args__ = (
+        UniqueConstraint("restaurant_id", "menu_item_id", "day", name="uq_prep_log_item_day"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    restaurant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("restaurants.id", ondelete="CASCADE"), index=True
+    )
+    menu_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("menu_items.id", ondelete="CASCADE")
+    )
+    day: Mapped[date] = mapped_column(Date)
+    prepared_qty: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
+class AiUsage(Base):
+    """One row per paid AI/maps call (or cache hit) so cost stays visible."""
+
+    __tablename__ = "ai_usage"
+    __table_args__ = (Index("ix_ai_usage_created", "created_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    provider: Mapped[str] = mapped_column(String(30))
+    purpose: Mapped[str] = mapped_column(String(40))
+    cache_hit: Mapped[bool] = mapped_column(Boolean, default=False)
+    ok: Mapped[bool] = mapped_column(Boolean, default=True)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    est_cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    detail: Mapped[str] = mapped_column(String(200), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

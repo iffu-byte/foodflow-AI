@@ -2,12 +2,14 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from math import isfinite
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assignment.scoring import Candidate, rank_candidates
+from app.batching import service as batching_service
+from app.config import settings
 from app.domain import service as domain_service
 from app.domain.exceptions import ConflictError, NotFoundError
 from app.domain.geo import haversine_km
@@ -25,10 +27,11 @@ from app.domain.models import (
     TrackingPoint,
     User,
 )
-from app.marketplace import notifications, pricing
+from app.honesty import service as honesty_service
+from app.marketplace import delivery_proof, notifications, pricing
 from app.marketplace.schemas import (
     AssignmentActionOut,
-    DeliveryActionIn,
+    DeliveryCompleteIn,
     EarningsEntryOut,
     EarningsOut,
     MarketOrderOut,
@@ -175,6 +178,142 @@ async def _open_offer(
     ).scalars().first()
 
 
+BATCH_OFFER_TTL_SECONDS = 45
+
+
+async def _offer_batched(
+    session: AsyncSession,
+    order: Order,
+    restaurant: Restaurant,
+    rejected: set[UUID],
+) -> OfferOut | None:
+    """Offer a shared order to the rider already collecting a same-route shared order."""
+    plan = await batching_service.find_partner(session, order, restaurant, rejected)
+    if plan is None:
+        return None
+    rider = plan.rider
+    assignment = DeliveryAssignment(
+        order_id=order.id,
+        rider_id=rider.id,
+        status="OFFERED",
+        offered_at=_now(),
+        expires_at=_now() + timedelta(seconds=BATCH_OFFER_TTL_SECONDS),
+    )
+    session.add(assignment)
+    await session.flush()
+    session.add(
+        OrderEvent(
+            order_id=order.id,
+            type="batch_proposed",
+            payload={
+                "rider_id": str(rider.id),
+                "assignment_id": str(assignment.id),
+                "partner_order_id": str(plan.partner_order.id),
+                "first_order_id": str(plan.first_order_id),
+                "saved_km": plan.saved_km,
+                "extra_min_for_second": plan.extra_min_for_second,
+                "partner_order_number": plan.partner_order.order_number,
+                "extra_km": round(
+                    plan.batched_km
+                    - haversine_km(
+                        restaurant.lat,
+                        restaurant.lng,
+                        plan.partner_order.drop_lat,
+                        plan.partner_order.drop_lng,
+                    ),
+                    2,
+                ),
+            },
+        )
+    )
+    candidate = Candidate(
+        rider=rider,
+        score=0.0,
+        pickup_distance_km=haversine_km(rider.lat, rider.lng, restaurant.lat, restaurant.lng),
+        pickup_eta_min=0.0,
+        active_load=len(rider.active_order_ids or []),
+        reasons=["already collecting a same-route shared order"],
+    )
+    offer = _offer_out(assignment, order, restaurant, candidate)
+    await _attach_batch_info(session, offer, assignment)
+    notification = await notifications.add(
+        session,
+        rider.user_id,
+        "DELIVERY_OFFER",
+        "Same-route drop available",
+        f"Add {order.order_number} from {restaurant.name} to your bag · saves "
+        f"{plan.saved_km} km of riding.",
+        order.id,
+    )
+    await session.commit()
+    await notifications.publish([notification])
+    return offer
+
+
+async def _attach_batch_info(
+    session: AsyncSession, offer: OfferOut, assignment: DeliveryAssignment
+) -> None:
+    proposal = (
+        await session.execute(
+            select(OrderEvent)
+            .where(
+                OrderEvent.order_id == assignment.order_id,
+                OrderEvent.type == "batch_proposed",
+            )
+            .order_by(OrderEvent.created_at.desc())
+        )
+    ).scalars().first()
+    if proposal is not None and proposal.payload.get("assignment_id") == str(assignment.id):
+        offer.batched_with = proposal.payload.get("partner_order_number")
+        offer.batch_extra_km = proposal.payload.get("extra_km")
+
+
+async def _apply_batch_on_accept(
+    session: AsyncSession, order: Order, rider: Rider, assignment: DeliveryAssignment
+) -> OrderEvent | None:
+    proposal = (
+        await session.execute(
+            select(OrderEvent)
+            .where(OrderEvent.order_id == order.id, OrderEvent.type == "batch_proposed")
+            .order_by(OrderEvent.created_at.desc())
+        )
+    ).scalars().first()
+    if proposal is None or proposal.payload.get("assignment_id") != str(assignment.id):
+        return None
+    partner = await session.get(Order, UUID(proposal.payload["partner_order_id"]))
+    if partner is None or partner.rider_id != rider.id or partner.status is not OrderStatus.READY:
+        return None
+    first_id = UUID(proposal.payload["first_order_id"])
+    batch_id = partner.batch_id or uuid4()
+    for row in (order, partner):
+        row.batch_id = batch_id
+        row.batch_sequence = 1 if row.id == first_id else 2
+    event = OrderEvent(
+        order_id=order.id,
+        type="batched",
+        payload={
+            "batch_id": str(batch_id),
+            "partner_order_id": str(partner.id),
+            "sequence": order.batch_sequence,
+            "saved_km": proposal.payload.get("saved_km"),
+        },
+    )
+    session.add(event)
+    session.add(
+        OrderEvent(
+            order_id=partner.id,
+            type="batched",
+            payload={
+                "batch_id": str(batch_id),
+                "partner_order_id": str(order.id),
+                "sequence": partner.batch_sequence,
+                "saved_km": proposal.payload.get("saved_km"),
+            },
+        )
+    )
+    return event
+
+
 async def create_offer(
     session: AsyncSession, order: Order, *, rider_id: UUID | None = None
 ) -> OfferOut | None:
@@ -216,6 +355,10 @@ async def create_offer(
             )
         ).scalars()
     )
+    if rider_id is None:
+        batched = await _offer_batched(session, order, restaurant, rejected)
+        if batched is not None:
+            return batched
     riders = list(
         (
             await session.execute(
@@ -330,23 +473,23 @@ async def offers_for_rider(session: AsyncSession, rider: Rider) -> list[OfferOut
         restaurant = await session.get(Restaurant, order.restaurant_id)
         if restaurant is None:
             continue
-        results.append(
-            _offer_out(
-                assignment,
-                order,
-                restaurant,
-                Candidate(
-                    rider=rider,
-                    score=0.0,
-                    pickup_distance_km=haversine_km(
-                        rider.lat, rider.lng, restaurant.lat, restaurant.lng
-                    ),
-                    pickup_eta_min=assignment.estimated_pickup_min,
-                    active_load=len(rider.active_order_ids or []),
-                    reasons=[],
+        offer = _offer_out(
+            assignment,
+            order,
+            restaurant,
+            Candidate(
+                rider=rider,
+                score=0.0,
+                pickup_distance_km=haversine_km(
+                    rider.lat, rider.lng, restaurant.lat, restaurant.lng
                 ),
-            )
+                pickup_eta_min=assignment.estimated_pickup_min,
+                active_load=len(rider.active_order_ids or []),
+                reasons=[],
+            ),
         )
+        await _attach_batch_info(session, offer, assignment)
+        results.append(offer)
     await session.commit()
     # This is a fallback for an online rider client.  The API's background
     # sweeper performs the same handoff even when no rider screen is open.
@@ -414,6 +557,7 @@ async def accept_offer(
         },
     )
     session.add(event)
+    batch_event = await _apply_batch_on_accept(session, order, rider, assignment)
     manager_id = await session.scalar(
         select(RestaurantStaff.user_id).where(
             RestaurantStaff.restaurant_id == order.restaurant_id
@@ -443,11 +587,14 @@ async def accept_offer(
     await session.commit()
     order = await domain_service.get_order(session, order.id)
     await realtime_service.publish_order_event(order, event)
+    if batch_event is not None:
+        await realtime_service.publish_order_event(order, batch_event)
     await notifications.publish(rows)
     return AssignmentActionOut(
         assignment_id=assignment.id,
         status=assignment.status,
         order=await _order_view(session, order),
+        batch=await batching_service.rider_batch(session, rider),
     )
 
 
@@ -500,7 +647,42 @@ async def _assignment_for(
     return assignment
 
 
+async def _batch_siblings(
+    session: AsyncSession, rider: Rider, assignment: DeliveryAssignment, status: str
+) -> list[DeliveryAssignment]:
+    """Other assignments in the same shared batch that should move together."""
+    order = await session.get(Order, assignment.order_id)
+    if order is None or order.batch_id is None:
+        return []
+    rows = (
+        await session.execute(
+            select(DeliveryAssignment)
+            .join(Order, Order.id == DeliveryAssignment.order_id)
+            .where(
+                DeliveryAssignment.rider_id == rider.id,
+                DeliveryAssignment.status == status,
+                DeliveryAssignment.id != assignment.id,
+                Order.batch_id == order.batch_id,
+                Order.restaurant_id == order.restaurant_id,
+            )
+        )
+    ).scalars()
+    return list(rows)
+
+
 async def arrived_at_restaurant(
+    session: AsyncSession, rider: Rider, assignment_id: UUID
+) -> AssignmentActionOut:
+    assignment = await _assignment_for(session, rider, assignment_id)
+    siblings = await _batch_siblings(session, rider, assignment, "ACCEPTED")
+    result = await _arrived_at_restaurant_one(session, rider, assignment_id)
+    for sibling in siblings:
+        await _arrived_at_restaurant_one(session, rider, sibling.id)
+    result.batch = await batching_service.rider_batch(session, rider)
+    return result
+
+
+async def _arrived_at_restaurant_one(
     session: AsyncSession, rider: Rider, assignment_id: UUID
 ) -> AssignmentActionOut:
     assignment = await _assignment_for(session, rider, assignment_id)
@@ -536,6 +718,20 @@ async def arrived_at_restaurant(
 
 
 async def pickup(
+    session: AsyncSession, rider: Rider, assignment_id: UUID
+) -> AssignmentActionOut:
+    assignment = await _assignment_for(session, rider, assignment_id)
+    siblings = await _batch_siblings(session, rider, assignment, "ARRIVED_AT_RESTAURANT")
+    result = await _pickup_one(session, rider, assignment_id)
+    for sibling in siblings:
+        sibling_order = await session.get(Order, sibling.order_id)
+        if sibling_order is not None and sibling_order.status is OrderStatus.READY:
+            await _pickup_one(session, rider, sibling.id)
+    result.batch = await batching_service.rider_batch(session, rider)
+    return result
+
+
+async def _pickup_one(
     session: AsyncSession, rider: Rider, assignment_id: UUID
 ) -> AssignmentActionOut:
     assignment = await _assignment_for(session, rider, assignment_id)
@@ -582,13 +778,18 @@ async def arrived_at_customer(
     assignment = await _assignment_for(session, rider, assignment_id)
     if assignment.status != "PICKED_UP":
         raise ConflictError("pickup the order before marking customer arrival")
+    order = await domain_service.get_order(session, assignment.order_id)
+    arrival_distance = delivery_proof.check_arrival(order, rider)
     assignment.status = "ARRIVED_AT_CUSTOMER"
     assignment.arrived_customer_at = _now()
-    order = await domain_service.get_order(session, assignment.order_id)
     event = OrderEvent(
         order_id=order.id,
         type="rider_arrived_customer",
-        payload={"rider_id": str(rider.id), "assignment_id": str(assignment.id)},
+        payload={
+            "rider_id": str(rider.id),
+            "assignment_id": str(assignment.id),
+            "distance_m": round(arrival_distance, 1),
+        },
     )
     session.add(event)
     rows = [
@@ -615,15 +816,47 @@ async def complete(
     session: AsyncSession,
     rider: Rider,
     assignment_id: UUID,
-    payload: DeliveryActionIn | None = None,
+    payload: DeliveryCompleteIn | None = None,
 ) -> AssignmentActionOut:
     assignment = await _assignment_for(session, rider, assignment_id)
     if assignment.status != "ARRIVED_AT_CUSTOMER":
         raise ConflictError("mark customer arrival before completing delivery")
 
-    order = await domain_service.get_order(session, assignment.order_id)
+    order = await domain_service.get_order(session, assignment.order_id, for_update=True)
     if order.status is not OrderStatus.PICKED_UP:
         raise ConflictError("order has not been picked up")
+    try:
+        proof = delivery_proof.verify_handover(order, rider, payload.otp if payload else None)
+    except ConflictError as exc:
+        if str(exc) != "wrong_otp":
+            raise
+        order.otp_attempts += 1
+        left = max(0, settings.otp_max_attempts - order.otp_attempts)
+        session.add(
+            OrderEvent(
+                order_id=order.id,
+                type="delivery_otp_failed",
+                payload={"rider_id": str(rider.id), "attempts": order.otp_attempts},
+            )
+        )
+        rows = []
+        if left == 0:
+            rows = await notifications.notify_admins(
+                session,
+                "DELIVERY_LOCKED",
+                "Delivery code locked",
+                f"{order.order_number or order.id}: {settings.otp_max_attempts} wrong codes "
+                f"entered by {rider.name}.",
+                order.id,
+            )
+        await session.commit()
+        await notifications.publish(rows)
+        raise ConflictError(
+            f"that code is wrong; {left} attempt{'s' if left != 1 else ''} left"
+            if left
+            else "too many wrong codes; this delivery is locked for support review"
+        ) from None
+    order.delivery_proof = proof
     distance = order.delivery_distance_km or haversine_km(
         rider.lat, rider.lng, order.drop_lat, order.drop_lng
     )
@@ -671,6 +904,7 @@ async def complete(
             "assignment_id": str(assignment.id),
             "earning": str(earning_amount),
             "distance_km": round(distance, 2),
+            "proof": proof,
         },
     )
     session.add(event)
@@ -680,10 +914,12 @@ async def complete(
             order.customer_id,
             "ORDER_DELIVERED",
             "Enjoy your meal",
-            f"{order.order_number or order.id} has been delivered.",
+            f"{order.order_number or order.id} was handed over with your delivery code, "
+            f"{proof['distance_m']:.0f} m from your pin.",
             order.id,
         )
     ]
+    rows.extend(await honesty_service.settle_delivery(session, order))
     rows.extend(
         await notifications.notify_admins(
             session,
@@ -820,23 +1056,33 @@ async def update_location(
 async def active_delivery(
     session: AsyncSession, rider: Rider
 ) -> AssignmentActionOut | None:
-    assignment = (
+    rows = (
         await session.execute(
-            select(DeliveryAssignment)
+            select(DeliveryAssignment, Order)
+            .join(Order, Order.id == DeliveryAssignment.order_id)
             .where(
                 DeliveryAssignment.rider_id == rider.id,
                 DeliveryAssignment.status.in_(ACTIVE_STATUSES),
             )
-            .order_by(DeliveryAssignment.offered_at.desc())
         )
-    ).scalars().first()
-    if assignment is None:
+    ).all()
+    if not rows:
         return None
-    order = await domain_service.get_order(session, assignment.order_id)
+
+    # With a shared batch, finish the bag in hand before the next pickup, and
+    # deliver drops in their planned sequence.
+    def priority(row) -> tuple:
+        assignment, order = row
+        on_road = assignment.status in ("PICKED_UP", "ARRIVED_AT_CUSTOMER")
+        return (0 if on_road else 1, order.batch_sequence or 1, assignment.offered_at)
+
+    assignment, order = sorted(rows, key=priority)[0]
+    order = await domain_service.get_order(session, order.id)
     return AssignmentActionOut(
         assignment_id=assignment.id,
         status=assignment.status,
         order=await _order_view(session, order),
+        batch=await batching_service.rider_batch(session, rider) if len(rows) > 1 else None,
     )
 
 

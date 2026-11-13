@@ -13,6 +13,7 @@ from app.auth.security import hash_password
 from app.config import settings
 from app.db import get_sessionmaker
 from app.domain.models import (
+    AiUsage,
     Cart,
     CartItem,
     Customer,
@@ -20,6 +21,7 @@ from app.domain.models import (
     DeliveryAssignment,
     DeliveryEarning,
     EtaPrediction,
+    KitchenPhoto,
     MenuItem,
     Notification,
     Order,
@@ -27,6 +29,8 @@ from app.domain.models import (
     OrderItem,
     OrderNumberCounter,
     OrderStatus,
+    PrepLog,
+    RescueListing,
     Restaurant,
     RestaurantStaff,
     Review,
@@ -399,6 +403,41 @@ def _build_riders() -> list[dict]:
 
 
 ALL_RESTAURANTS = _build_restaurants()
+
+# Two brands cooked in one cloud kitchen (5 m apart), so the shared-kitchen
+# check has a real case to find. The Wrap Shack discloses it; Burger Barn does not.
+SHARED_KITCHEN = ("The Wrap Shack", "Burger Barn")
+DISCLOSED_CLOUD_KITCHENS = {"The Wrap Shack"}
+_wrap = next(r for r in ALL_RESTAURANTS if r["name"] == SHARED_KITCHEN[0])
+_burger = next(r for r in ALL_RESTAURANTS if r["name"] == SHARED_KITCHEN[1])
+_burger["lat"], _burger["lng"] = _wrap["lat"] + 0.00004, _wrap["lng"] + 0.00002
+
+# Leave these dishes unmeasured so Portion Studio has live work in the demo.
+UNMEASURED_DEMO_DISHES = {("Spice Route", "Chicken Biryani"), ("Spice Route", "Garlic Naan")}
+
+
+def _fssai_for(index: int) -> tuple[str | None, object]:
+    """Synthetic, well-formed FSSAI numbers; a few are missing or expired on purpose."""
+    today = DEMO_NOW.date()
+    if index % 9 == 4:
+        return None, None
+    number = f"1{36:02d}{19 + index % 6:02d}{(index * 7) % 1000:03d}{100000 + index * 1337:06d}"
+    if index % 11 == 7:
+        return number, today - timedelta(days=30)
+    return number, today + timedelta(days=200 + index * 9)
+
+
+def _declared_portion(name: str, index: int) -> tuple[int | None, int | None, int | None]:
+    """Declared grams/serves/pieces for a share of kitchens, from the dish table."""
+    from app.nutrition.service import match_dish
+
+    if index % 3 == 1:
+        return None, None, None
+    dish, _ = match_dish(name)
+    if dish is None:
+        return None, None, None
+    serves = max(1, round(dish.portion_g / 350))
+    return dish.portion_g, serves, dish.pieces
 CUSTOMERS = _build_customers()
 RIDERS = _build_riders()
 
@@ -412,6 +451,9 @@ async def seed(force: bool = False) -> None:
                 print("Seed data already present; use --force to reset.")
                 return
             for model in (
+                AiUsage,
+                KitchenPhoto,
+                PrepLog,
                 Notification,
                 Review,
                 DeliveryEarning,
@@ -419,6 +461,7 @@ async def seed(force: bool = False) -> None:
                 EtaPrediction,
                 DeliveryAssignment,
                 CartItem,
+                RescueListing,
                 Cart,
                 CustomerAddress,
                 RestaurantStaff,
@@ -518,6 +561,7 @@ async def seed(force: bool = False) -> None:
                     home_lng=customer["lng"],
                     budget_pref=customer["budget"],
                     diet_pref=customer["diet"],
+                    daily_kcal_goal=1800 if index == 0 else None,
                 )
             )
             session.add(
@@ -577,6 +621,13 @@ async def seed(force: bool = False) -> None:
                     min_order_value=Decimal("99.00" if index % 2 == 0 else "149.00"),
                     delivery_fee=Decimal(str(19 + (index % 3) * 10)),
                     is_active=True,
+                    fssai_license=_fssai_for(index)[0],
+                    fssai_valid_until=_fssai_for(index)[1],
+                    kitchen_type=(
+                        "cloud_kitchen"
+                        if restaurant["name"] in DISCLOSED_CLOUD_KITCHENS
+                        else "dine_in"
+                    ),
                 )
             )
 
@@ -591,9 +642,14 @@ async def seed(force: bool = False) -> None:
                 )
             )
 
-        for restaurant in ALL_RESTAURANTS:
+        for r_index, restaurant in enumerate(ALL_RESTAURANTS):
             restaurant_id = sid(f"restaurant:{restaurant['name']}")
             for name, price, category, veg, complexity, tags in restaurant["menu"]:
+                grams, serves, pieces = (
+                    (None, None, None)
+                    if (restaurant["name"], name) in UNMEASURED_DEMO_DISHES
+                    else _declared_portion(name, r_index)
+                )
                 session.add(
                     MenuItem(
                         id=sid(f"menu:{restaurant['name']}:{name}"),
@@ -606,6 +662,10 @@ async def seed(force: bool = False) -> None:
                         tags=tags,
                         description=f"{name}, made fresh with {', '.join(tags)}.",
                         available=True,
+                        portion_grams=grams,
+                        portion_serves=serves,
+                        portion_pieces=pieces,
+                        portion_method="declared" if grams else "unknown",
                     )
                 )
 
@@ -760,6 +820,7 @@ async def _seed_demo_orders(session) -> None:
                     restaurant_id=sid(f"restaurant:{demo['restaurant']}"),
                     rider_id=rider_id,
                     restaurant_rating=5,
+                    quantity_feedback="as_described",
                     rider_rating=5,
                     comment="Hot, fresh and delivered ahead of the promised ETA.",
                     created_at=delivered_at + timedelta(minutes=5),

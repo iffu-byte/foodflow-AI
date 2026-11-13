@@ -161,6 +161,21 @@ export function CartView({
                   <p className="truncate text-[14px] font-semibold">{line.name}</p>
                   <p className="mt-0.5 text-[11px] text-stone-500">
                     {formatCurrency(line.price)} each
+                    {line.original_price ? (
+                      <span className="ml-1.5 text-stone-400 line-through">
+                        {formatCurrency(line.original_price)}
+                      </span>
+                    ) : null}
+                    {line.rescue_listing_id ? (
+                      <span className="ml-1.5 rounded-full bg-[#1f5b46] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white">
+                        Rescue price · locks at checkout
+                      </span>
+                    ) : null}
+                    {line.kcal ? (
+                      <span className="ml-1.5 text-[10px] text-[#7d5309]">
+                        {line.kcal * line.qty} kcal
+                      </span>
+                    ) : null}
                     {!line.available ? (
                       <span className="ml-2 font-semibold text-rose-700">
                         Currently unavailable
@@ -278,7 +293,39 @@ export function CartView({
             <div className="border-t border-stone-900/10 pt-3">
               <Row label="Total" value={formatCurrency(cart.total)} strong />
             </div>
+            <p className="text-[10px] text-stone-400">
+              No platform fee, no surge, no rain fee. Menu prices match the kitchen&apos;s own.
+            </p>
+            {Number(cart.rescue_saving ?? 0) > 0 ? (
+              <Row
+                label="Saved by rescuing surplus food"
+                value={formatCurrency(cart.rescue_saving ?? 0)}
+                tone="green"
+              />
+            ) : null}
           </div>
+          {cart.nutrition ? (
+            <div className="mt-4 rounded-2xl border border-[#f4b942]/40 bg-[#f4b942]/10 p-3">
+              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#8a5b0a]">
+                This order, estimated
+              </p>
+              <p className="mt-1 font-serif text-[22px] leading-none">
+                {Math.round(cart.nutrition.kcal)} kcal
+              </p>
+              <p className="mt-1 text-[11px] text-stone-600">
+                {cart.nutrition.protein_g} g protein · {cart.nutrition.carbs_g} g carbs ·{" "}
+                {cart.nutrition.fat_g} g fat
+              </p>
+              {cart.nutrition.allergens.length ? (
+                <p className="mt-1 text-[10px] text-rose-800">
+                  Contains: {cart.nutrition.allergens.join(", ")}
+                </p>
+              ) : null}
+              <p className="mt-1 text-[9px] text-stone-400">
+                Scaled to each dish&apos;s declared or measured portion.
+              </p>
+            </div>
+          ) : null}
 
           {belowMinimum && restaurant ? (
             <div className="mt-4">

@@ -9,6 +9,7 @@ def order_out(
     restaurant_name: str,
     rider_name: str | None = None,
     can_review: bool = False,
+    include_otp: bool = False,
 ) -> MarketOrderOut:
     return MarketOrderOut(
         id=order.id,
@@ -40,6 +41,14 @@ def order_out(
         delay_flags=order.delay_flags or [],
         reassign_count=order.reassign_count,
         can_review=can_review,
+        delivery_otp=order.delivery_otp if include_otp else None,
+        delivery_mode=order.delivery_mode,
+        shared_saving=order.shared_saving,
+        batch_id=order.batch_id,
+        batch_sequence=order.batch_sequence,
+        compensation=order.compensation,
+        delivery_proof=order.delivery_proof or None,
+        otp_attempts=order.otp_attempts,
     )
 
 
@@ -72,4 +81,6 @@ def browse_out(restaurant, distance_km: float | None = None):
         image_url=restaurant.image_url,
         is_active=restaurant.is_active,
         distance_km=round(distance_km, 2) if distance_km is not None else None,
+        kitchen_type=restaurant.kitchen_type,
+        price_parity=restaurant.price_parity,
     )

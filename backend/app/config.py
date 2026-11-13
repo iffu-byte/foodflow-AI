@@ -29,6 +29,18 @@ class Settings(BaseSettings):
     auth_secret: str = ""
     auth_token_ttl_min: int = 1440
     demo_password: str = "demo1234"
+    # Trust layer and AI. Every external call is optional and has a local fallback.
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-flash-lite-latest"
+    google_maps_api_key: str = ""
+    ai_daily_budget_usd: float = 0.50
+    places_cache_days: int = 7
+    osm_enabled: bool = True
+    osm_user_agent: str = "FoodFlow-AI-hackathon-demo/0.1"
+    geofence_radius_m: float = 150.0
+    otp_max_attempts: int = 5
+    media_dir: str = "media"
+    shared_ride_saving: float = 15.0
 
     @model_validator(mode="after")
     def validate_settings(self) -> "Settings":

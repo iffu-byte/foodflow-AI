@@ -10,6 +10,7 @@ from app.marketplace.schemas import (
     AssignmentActionOut,
     AvailabilityIn,
     DeliveryActionIn,
+    DeliveryCompleteIn,
     EarningsOut,
     MarketOrderOut,
     OfferActionOut,
@@ -136,7 +137,7 @@ async def complete(
     assignment_id: UUID,
     user: RiderUser,
     session: SessionDep,
-    payload: DeliveryActionIn | None = None,
+    payload: DeliveryCompleteIn | None = None,
 ) -> AssignmentActionOut:
     rider = await access.rider_for(session, user)
     return await dispatch.complete(session, rider, assignment_id, payload)

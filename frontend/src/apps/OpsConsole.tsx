@@ -3,13 +3,14 @@ import { useEffect, useState } from "react";
 import { Badge, Dot, SimulatedBadge } from "../components/ui";
 import { API_URL, type AuthUser } from "../lib/api";
 import { signOut } from "../lib/session";
+import AiUsage from "../tabs/AiUsage";
 import Dispatch from "../tabs/Dispatch";
 import LiveBoard from "../tabs/LiveBoard";
 import Models from "../tabs/Models";
 import Monitor from "../tabs/Monitor";
 import Recommendations from "../tabs/Recommendations";
 
-type TabId = "live" | "dispatch" | "monitor" | "models" | "recs";
+type TabId = "live" | "dispatch" | "monitor" | "models" | "recs" | "ai";
 
 type ApiState = "checking" | "online" | "offline";
 
@@ -65,6 +66,15 @@ const tabs: Array<{
     title: "Know the next order.",
     description:
       "Restaurant and dish picks shaped by budget, diet, distance, rating and cuisine history.",
+  },
+  {
+    id: "ai",
+    index: "06",
+    label: "AI cost meter",
+    hint: "Tokens, cache, budget",
+    title: "Every token accounted for.",
+    description:
+      "Paid AI and maps calls with cache hits and estimated cost, capped by a daily budget.",
   },
 ];
 
@@ -244,6 +254,7 @@ export default function OpsConsole({ user }: { user: AuthUser }) {
             {tab === "monitor" ? <Monitor /> : null}
             {tab === "models" ? <Models /> : null}
             {tab === "recs" ? <Recommendations /> : null}
+            {tab === "ai" ? <AiUsage /> : null}
           </div>
 
           <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-4 text-[10px] uppercase tracking-[0.16em] text-stone-600">

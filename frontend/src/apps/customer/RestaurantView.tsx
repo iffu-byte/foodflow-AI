@@ -26,6 +26,35 @@ import {
   SimBadge,
   Spinner,
 } from "../../components/market";
+import {
+  NutritionChips,
+  PortionLine,
+  PortionPhotoModal,
+  TrustPanel,
+} from "../../components/trust";
+
+type DishFilter = "veg" | "protein" | "light" | "verified" | "rescue";
+
+const dishFilters: Array<{ id: DishFilter; label: string }> = [
+  { id: "veg", label: "Veg" },
+  { id: "protein", label: "High protein 20 g+" },
+  { id: "light", label: "Under 500 kcal" },
+  { id: "verified", label: "Portion verified" },
+  { id: "rescue", label: "Rescue deals" },
+];
+
+function matchesFilters(item: BrowseMenuItem, filters: Set<DishFilter>): boolean {
+  if (filters.has("veg") && !item.veg) return false;
+  if (filters.has("protein") && (item.nutrition?.protein_g ?? 0) < 20) return false;
+  if (filters.has("light") && (item.nutrition?.kcal ?? 9999) >= 500) return false;
+  if (
+    filters.has("verified") &&
+    !["photo_reference", "container", "scale", "pieces"].includes(item.portion_method ?? "")
+  )
+    return false;
+  if (filters.has("rescue") && !item.rescue) return false;
+  return true;
+}
 
 export function RestaurantView({
   restaurantId,
@@ -47,6 +76,8 @@ export function RestaurantView({
   const [added, setAdded] = useState<string | null>(null);
   const [conflict, setConflict] = useState<BrowseMenuItem | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [filters, setFilters] = useState<Set<DishFilter>>(new Set());
+  const [photoItem, setPhotoItem] = useState<BrowseMenuItem | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,21 +125,21 @@ export function RestaurantView({
 
   const groups = useMemo(() => {
     const map = new Map<string, BrowseMenuItem[]>();
-    for (const item of menu) {
+    for (const item of menu.filter((entry) => matchesFilters(entry, filters))) {
       const group = map.get(item.category) ?? [];
       group.push(item);
       map.set(item.category, group);
     }
     return Array.from(map.entries());
-  }, [menu]);
+  }, [menu, filters]);
 
   const add = async (item: BrowseMenuItem) => {
     setBusyItem(item.id);
     setError(null);
     try {
-      const next = await addCartItem(item.id);
+      const next = await addCartItem(item.id, 1, item.rescue?.id);
       onCartUpdated(next);
-      setAdded(item.name);
+      setAdded(item.rescue ? `${item.name} (rescue price)` : item.name);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setConflict(item);
@@ -140,7 +171,7 @@ export function RestaurantView({
       for (const line of current.items) {
         await removeCartItem(line.id);
       }
-      const next = await addCartItem(conflict.id);
+      const next = await addCartItem(conflict.id, 1, conflict.rescue?.id);
       onCartUpdated(next);
       setAdded(conflict.name);
       setConflict(null);
@@ -230,6 +261,41 @@ export function RestaurantView({
       ) : null}
       {error ? <Notice>{error}</Notice> : null}
 
+      <TrustPanel restaurantId={restaurant.id} />
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-500">
+          Filter dishes
+        </span>
+        {dishFilters.map((filter) => {
+          const on = filters.has(filter.id);
+          return (
+            <button
+              key={filter.id}
+              type="button"
+              onClick={() =>
+                setFilters((current) => {
+                  const next = new Set(current);
+                  if (next.has(filter.id)) next.delete(filter.id);
+                  else next.add(filter.id);
+                  return next;
+                })
+              }
+              className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${
+                on
+                  ? "border-stone-900 bg-stone-900 text-[#f8f3e9]"
+                  : "border-stone-900/15 bg-white/40 text-stone-600 hover:bg-white"
+              }`}
+            >
+              {filter.label}
+            </button>
+          );
+        })}
+        <span className="ml-auto text-[10px] text-stone-400">
+          Calories are estimates for the stated portion
+        </span>
+      </div>
+
       {recommended.length > 0 ? (
         <section className="rounded-[26px] border border-[#b47816]/25 bg-[#f4b942]/10 p-4">
           <div className="flex items-center justify-between">
@@ -268,6 +334,17 @@ export function RestaurantView({
 
       <section className="grid gap-6 lg:grid-cols-[1fr_280px]">
         <div className="space-y-6">
+          {groups.length === 0 ? (
+            <Empty
+              title="No dishes match these filters."
+              hint="Clear a filter to see the full menu."
+              action={
+                <Btn variant="outline" onClick={() => setFilters(new Set())}>
+                  Clear filters
+                </Btn>
+              }
+            />
+          ) : null}
           {groups.map(([category, items]) => (
             <div key={category}>
               <div className="mb-3 flex items-end justify-between gap-3">
@@ -305,9 +382,24 @@ export function RestaurantView({
                             <p className="text-[14px] font-semibold leading-tight">
                               {item.name}
                             </p>
-                            <p className="mt-1 text-[12px] font-semibold text-stone-700">
-                              {formatCurrency(item.price)}
-                            </p>
+                            {item.rescue ? (
+                              <p className="mt-1 flex flex-wrap items-baseline gap-1.5 text-[12px] font-semibold">
+                                <span className="text-[#1f5b46]">
+                                  {formatCurrency(item.rescue.current_price)}
+                                </span>
+                                <span className="text-[11px] text-stone-400 line-through">
+                                  {formatCurrency(item.price)}
+                                </span>
+                                <span className="rounded-full bg-[#1f5b46] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-white">
+                                  Rescue · {item.rescue.qty_left} left
+                                </span>
+                              </p>
+                            ) : (
+                              <p className="mt-1 text-[12px] font-semibold text-stone-700">
+                                {formatCurrency(item.price)}
+                              </p>
+                            )}
+                            <PortionLine item={item} />
                           </div>
                           {line ? (
                             <div className="flex items-center rounded-full border border-[#1f5b46]/30 bg-[#1f5b46]/5">
@@ -349,6 +441,16 @@ export function RestaurantView({
                         <p className="mt-1.5 max-w-xl text-[11px] leading-snug text-stone-500">
                           {item.description}
                         </p>
+                        <NutritionChips nutrition={item.nutrition} />
+                        {item.portion_photo_url ? (
+                          <button
+                            type="button"
+                            onClick={() => setPhotoItem(item)}
+                            className="mt-1.5 text-[10px] font-semibold text-[#1f5b46] underline"
+                          >
+                            See the real portion photo
+                          </button>
+                        ) : null}
                         <div className="mt-2 flex flex-wrap gap-1">
                           {item.tags.slice(0, 3).map((tag) => (
                             <span
@@ -430,6 +532,10 @@ export function RestaurantView({
         <div className="fixed bottom-5 right-5 z-50 rounded-2xl bg-stone-900 px-4 py-3 text-[12px] font-medium text-[#f8f3e9] shadow-2xl">
           {added} added to cart
         </div>
+      ) : null}
+
+      {photoItem ? (
+        <PortionPhotoModal item={photoItem} onClose={() => setPhotoItem(null)} />
       ) : null}
 
       {conflict ? (

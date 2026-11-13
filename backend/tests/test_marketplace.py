@@ -444,12 +444,34 @@ async def test_full_delivery_lifecycle_review_and_earnings(client, market, monke
     assert rider_tracking.status_code == 200, rider_tracking.text
     assert rider_tracking.json()["rider"]["id"] == market["rider_id"]
 
-    for action in ("arrived-restaurant", "pickup", "arrived-customer", "complete"):
+    for action in ("arrived-restaurant", "pickup"):
         response = await client.post(
             f"/api/v1/rider/assignments/{assignment_id}/{action}",
             headers=market["rider"],
         )
         assert response.status_code == 200, response.text
+
+    # Arrival and handover are geofenced: move to the customer's pin first.
+    moved = await client.post(
+        "/api/v1/rider/location",
+        json={"lat": 17.4401, "lng": 78.3501, "source": "gps", "accuracy_m": 8},
+        headers=market["rider"],
+    )
+    assert moved.status_code == 200, moved.text
+    arrived = await client.post(
+        f"/api/v1/rider/assignments/{assignment_id}/arrived-customer",
+        headers=market["rider"],
+    )
+    assert arrived.status_code == 200, arrived.text
+    otp = (await client.get(f"/api/v1/orders/{order_id}", headers=market["customer"])).json()[
+        "delivery_otp"
+    ]
+    completed = await client.post(
+        f"/api/v1/rider/assignments/{assignment_id}/complete",
+        json={"otp": otp},
+        headers=market["rider"],
+    )
+    assert completed.status_code == 200, completed.text
 
     delivered = await client.get(
         f"/api/v1/orders/{order_id}", headers=market["customer"]

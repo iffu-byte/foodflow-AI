@@ -8,6 +8,7 @@ import {
   getTracking,
   getTrackingRoute,
   reorder,
+  reportNotReceived,
   reviewOrder,
   type Cart,
   type MarketOrder,
@@ -21,6 +22,7 @@ import {
 } from "../../lib/format";
 import { navigate } from "../../lib/session";
 import { RouteMap } from "../../components/RouteMap";
+import { HonestStatusCard, OtpCard } from "../../components/trust";
 import {
   Btn,
   Modal,
@@ -75,6 +77,10 @@ export function OrderDetailView({
   const [riderRating, setRiderRating] = useState(0);
   const [comment, setComment] = useState("");
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [quantity, setQuantity] = useState<"as_described" | "more" | "less" | "much_less" | "">(
+    "",
+  );
+  const [dispute, setDispute] = useState<{ verdict: string; message: string } | null>(null);
   const mounted = useRef(true);
   const trackingRef = useRef<Tracking | null>(null);
   const lastRouteRequestAt = useRef(0);
@@ -227,11 +233,24 @@ export function OrderDetailView({
         restaurant_rating: rating,
         rider_rating: riderRating || undefined,
         comment: comment || undefined,
+        quantity_feedback: quantity || undefined,
       });
       setReviewOpen(false);
       await load();
     } catch (err) {
       setReviewError(err instanceof ApiError ? err.message : "Could not save your review.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const notReceived = async () => {
+    setBusy("dispute");
+    setError(null);
+    try {
+      setDispute(await reportNotReceived(orderId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not report this.");
     } finally {
       setBusy(null);
     }
@@ -351,6 +370,43 @@ export function OrderDetailView({
           </p>
         )}
       </section>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+        <HonestStatusCard
+          orderId={order.id}
+          refreshKey={`${order.status}-${order.rider_id ?? ""}`}
+          onCancel={() => setCancelOpen(true)}
+        />
+        <div className="space-y-3">
+          <OtpCard otp={order.delivery_otp} status={order.status} />
+          {order.delivery_proof ? (
+            <section className="rounded-[24px] border border-[#1f5b46]/20 bg-[#1f5b46]/[0.06] p-4 text-[11px] text-stone-700">
+              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#1f5b46]">
+                Proof of delivery
+              </p>
+              <p className="mt-1">
+                Your code was entered at {formatClock(order.delivery_proof.verified_at)} with the
+                rider {Math.round(order.delivery_proof.distance_m)} m from your pin (limit{" "}
+                {Math.round(order.delivery_proof.radius_m)} m,{" "}
+                {order.delivery_proof.location_source === "gps" ? "live GPS" : "simulated location"}).
+              </p>
+              {dispute ? (
+                <p className="mt-2 rounded-lg bg-white/70 px-2.5 py-2">{dispute.message}</p>
+              ) : (
+                <Btn
+                  size="sm"
+                  variant="outline"
+                  className="mt-2"
+                  disabled={busy === "dispute"}
+                  onClick={() => void notReceived()}
+                >
+                  I didn&apos;t receive this
+                </Btn>
+              )}
+            </section>
+          ) : null}
+        </div>
+      </div>
 
       {!cancelled ? (
         <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
@@ -575,6 +631,37 @@ export function OrderDetailView({
                 />
               </div>
             ) : null}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">
+                Was the quantity what the menu said?
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-1.5">
+                {(
+                  [
+                    ["as_described", "Yes, as described"],
+                    ["more", "More than stated"],
+                    ["less", "A bit less"],
+                    ["much_less", "Much less"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setQuantity(quantity === value ? "" : value)}
+                    className={`rounded-xl border px-2.5 py-2 text-[11px] font-semibold transition ${
+                      quantity === value
+                        ? "border-[#1f5b46] bg-[#1f5b46] text-white"
+                        : "border-stone-900/15 bg-white/50 text-stone-600"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-[10px] text-stone-400">
+                Feeds the kitchen&apos;s public trust score.
+              </p>
+            </div>
             <label className="block">
               <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">
                 A note

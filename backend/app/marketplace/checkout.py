@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.domain import service as domain_service
 from app.domain.exceptions import BadRequestError, NotFoundError
 from app.domain.geo import haversine_km
@@ -27,11 +28,12 @@ from app.domain.models import (
     User,
 )
 from app.eta.service import estimate_for_order
-from app.marketplace import notifications, pricing
+from app.marketplace import delivery_proof, notifications, pricing
 from app.marketplace.schemas import CheckoutIn, MarketOrderOut, PaymentCheckoutOut
 from app.marketplace.serializers import order_out
 from app.payments import service as payment_service
 from app.realtime import service as realtime_service
+from app.rescue import service as rescue_service
 
 
 async def _next_order_number(session: AsyncSession) -> str:
@@ -171,8 +173,26 @@ async def checkout(
         if item.qty < 1:
             raise BadRequestError("invalid item quantity")
 
+    # Rescue lines are claimed under a row lock at today's falling price.
+    unit_prices: dict = {}
+    rescued: list[dict] = []
+    for item in cart_items:
+        unit_prices[item.menu_item_id] = menu[item.menu_item_id].price
+        if item.rescue_listing_id is not None:
+            listing, price = await rescue_service.claim(
+                session, item.rescue_listing_id, item.qty
+            )
+            unit_prices[item.menu_item_id] = price
+            rescued.append(
+                {
+                    "listing_id": str(listing.id),
+                    "menu_item_id": str(item.menu_item_id),
+                    "qty": item.qty,
+                    "price": str(price),
+                }
+            )
     subtotal = sum(
-        (menu[item.menu_item_id].price * item.qty for item in cart_items),
+        (unit_prices[item.menu_item_id] * item.qty for item in cart_items),
         start=Decimal("0.00"),
     )
     if subtotal < restaurant.min_order_value:
@@ -181,7 +201,13 @@ async def checkout(
         )
 
     coupon = payload.coupon_code or cart.coupon_code
-    quoted = pricing.quote(subtotal, restaurant.delivery_fee, coupon)
+    quoted = pricing.quote(
+        subtotal,
+        restaurant.delivery_fee,
+        coupon,
+        shared=payload.delivery_mode == "shared",
+        shared_saving=Decimal(str(settings.shared_ride_saving)),
+    )
     drop_lat, drop_lng, address_text, phone = await _address(
         session, customer, user, payload.address_id
     )
@@ -213,6 +239,9 @@ async def checkout(
         delivery_distance_km=round(
             haversine_km(restaurant.lat, restaurant.lng, drop_lat, drop_lng), 2
         ),
+        delivery_otp=delivery_proof.generate_otp(),
+        delivery_mode=payload.delivery_mode,
+        shared_saving=quoted.shared_saving,
     )
     for cart_item in cart_items:
         menu_item = menu[cart_item.menu_item_id]
@@ -221,7 +250,7 @@ async def checkout(
                 menu_item_id=menu_item.id,
                 name=menu_item.name,
                 qty=cart_item.qty,
-                unit_price=menu_item.price,
+                unit_price=unit_prices[menu_item.id],
             )
         )
     session.add(order)
@@ -236,6 +265,8 @@ async def checkout(
             "item_count": sum(item.qty for item in cart_items),
             "restaurant_id": str(restaurant.id),
             "payment_method": payload.payment_method,
+            "delivery_mode": payload.delivery_mode,
+            "rescued": rescued,
         },
     )
     session.add(placed_event)
@@ -309,6 +340,8 @@ async def checkout(
     if order.rider_id is not None:
         rider = await session.get(Rider, order.rider_id)
         rider_name = rider.name if rider is not None else None
-    result = order_out(order, restaurant_name=restaurant.name, rider_name=rider_name)
+    result = order_out(
+        order, restaurant_name=restaurant.name, rider_name=rider_name, include_otp=True
+    )
     result.payment_checkout = payment_checkout
     return result

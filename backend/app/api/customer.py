@@ -43,10 +43,16 @@ async def browse_restaurants(
     veg: bool | None = None,
     max_delivery_fee: float | None = None,
     min_rating: float | None = None,
+    sort: str | None = None,
 ):
     from decimal import Decimal
 
+    from sqlalchemy import select
+
+    from app.domain.models import MenuItem
     from app.marketplace.serializers import browse_out
+    from app.rescue import service as rescue_service
+    from app.trust import service as trust_service
 
     rows = await restaurant_service.browse(
         session,
@@ -60,7 +66,47 @@ async def browse_restaurants(
         ),
         min_rating=min_rating,
     )
-    return [browse_out(restaurant, distance) for restaurant, distance in rows]
+    scores = await trust_service.scores_for(session, [restaurant for restaurant, _ in rows])
+    rescue_counts = await rescue_service.live_counts(session)
+    dishes: dict = {}
+    if q:
+        matches = (
+            await session.execute(
+                select(MenuItem).where(
+                    MenuItem.restaurant_id.in_([restaurant.id for restaurant, _ in rows]),
+                    MenuItem.name.ilike(f"%{q}%"),
+                    MenuItem.available.is_(True),
+                )
+            )
+        ).scalars()
+        for item in matches:
+            dishes.setdefault(item.restaurant_id, []).append(
+                {
+                    "id": str(item.id),
+                    "name": item.name,
+                    "price": str(item.price),
+                    "veg": item.veg,
+                    "portion_grams": item.portion_grams,
+                }
+            )
+    results = []
+    for restaurant, distance in rows:
+        out = browse_out(restaurant, distance)
+        trust = scores.get(restaurant.id)
+        if trust:
+            out.trust_score = trust["score"]
+            out.trust_grade = trust["grade"]
+            out.trust_badges = trust["badges"]
+            out.trust_warnings = trust["warnings"]
+        out.rescue_live = rescue_counts.get(restaurant.id, 0)
+        out.matching_dishes = dishes.get(restaurant.id, [])[:3]
+        results.append(out)
+    # Ranking is never paid: distance by default, or the customer's own choice.
+    if sort == "trust":
+        results.sort(key=lambda row: -(row.trust_score or 0))
+    elif sort == "rating":
+        results.sort(key=lambda row: -float(row.rating))
+    return results
 
 
 @router.get("/restaurants/{restaurant_id}")

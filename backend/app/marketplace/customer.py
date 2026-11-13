@@ -60,6 +60,7 @@ async def _order_view(
         restaurant_name=restaurant_name,
         rider_name=rider_name,
         can_review=can_review,
+        include_otp=True,
     )
 
 
@@ -234,6 +235,7 @@ async def create_review(
         restaurant_rating=payload.restaurant_rating,
         rider_rating=payload.rider_rating,
         comment=payload.comment,
+        quantity_feedback=payload.quantity_feedback,
     )
     session.add(review)
 
@@ -283,6 +285,7 @@ async def profile(session: AsyncSession, user: User, customer: Customer) -> Prof
         home_lng=customer.home_lng,
         budget_pref=customer.budget_pref,
         diet_pref=customer.diet_pref,
+        daily_kcal_goal=customer.daily_kcal_goal,
     )
 
 
@@ -302,6 +305,8 @@ async def update_profile(
         customer.home_lat = updates["home_lat"]
     if updates.get("home_lng") is not None:
         customer.home_lng = updates["home_lng"]
+    if "daily_kcal_goal" in updates:
+        customer.daily_kcal_goal = updates["daily_kcal_goal"]
     await session.commit()
     return await profile(session, user, customer)
 

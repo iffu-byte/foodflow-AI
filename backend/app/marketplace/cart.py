@@ -5,7 +5,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.exceptions import BadRequestError, ConflictError, NotFoundError
-from app.domain.models import Cart, CartItem, MenuItem, Restaurant
+from app.domain.models import Cart, CartItem, MenuItem, RescueListing, Restaurant
 from app.marketplace import pricing
 from app.marketplace.schemas import (
     CartItemIn,
@@ -14,6 +14,8 @@ from app.marketplace.schemas import (
     CartOut,
     CartRestaurantOut,
 )
+from app.nutrition import service as nutrition_service
+from app.rescue import service as rescue_service
 
 MAX_QTY = 20
 
@@ -42,6 +44,27 @@ async def _load_lines(session: AsyncSession, cart: Cart) -> list[tuple[CartItem,
     return [(item, menu_item) for item, menu_item in rows]
 
 
+async def effective_prices(
+    session: AsyncSession, lines: list[tuple[CartItem, MenuItem]]
+) -> dict[UUID, tuple[Decimal, RescueListing | None]]:
+    """Price each line now: the live rescue price when it applies, else the menu price.
+
+    A rescue deal that has ended or sold out silently returns the line to menu
+    price, and the stale link is cleared so the customer sees the real bill.
+    """
+    prices: dict[UUID, tuple[Decimal, RescueListing | None]] = {}
+    for item, menu_item in lines:
+        listing = None
+        if item.rescue_listing_id is not None:
+            listing = await session.get(RescueListing, item.rescue_listing_id)
+            if listing is None or not rescue_service.is_live(listing):
+                item.rescue_listing_id = None
+                listing = None
+        price = rescue_service.price_at(listing) if listing is not None else menu_item.price
+        prices[item.id] = (price, listing)
+    return prices
+
+
 async def cart_out(session: AsyncSession, cart: Cart) -> CartOut:
     lines = await _load_lines(session, cart)
     restaurant = (
@@ -49,8 +72,13 @@ async def cart_out(session: AsyncSession, cart: Cart) -> CartOut:
         if cart.restaurant_id is not None
         else None
     )
+    prices = await effective_prices(session, lines)
     subtotal = sum(
-        (menu_item.price * item.qty for item, menu_item in lines),
+        (prices[item.id][0] * item.qty for item, _ in lines),
+        start=Decimal("0.00"),
+    )
+    rescue_saving = sum(
+        ((menu_item.price - prices[item.id][0]) * item.qty for item, menu_item in lines),
         start=Decimal("0.00"),
     )
     fee = restaurant.delivery_fee if restaurant is not None else Decimal("29.00")
@@ -61,7 +89,35 @@ async def cart_out(session: AsyncSession, cart: Cart) -> CartOut:
         quoted = pricing.quote(subtotal, fee, None)
         coupon_code = None
         cart.coupon_code = None
-        await session.commit()
+
+    await nutrition_service.ensure_for_items(session, [menu_item for _, menu_item in lines])
+    totals = {"kcal": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0}
+    allergens: set[str] = set()
+    out_lines = []
+    for item, menu_item in lines:
+        view = nutrition_service.portion_view(menu_item)
+        for key in totals:
+            totals[key] += view[key] * item.qty
+        allergens.update(view["allergens"])
+        price, listing = prices[item.id]
+        out_lines.append(
+            CartLineOut(
+                id=item.id,
+                menu_item_id=menu_item.id,
+                name=menu_item.name,
+                price=price,
+                qty=item.qty,
+                veg=menu_item.veg,
+                available=menu_item.available,
+                line_total=price * item.qty,
+                original_price=menu_item.price if listing is not None else None,
+                rescue_listing_id=listing.id if listing is not None else None,
+                rescue_ends_at=listing.ends_at if listing is not None else None,
+                kcal=view["kcal"],
+                protein_g=view["protein_g"],
+            )
+        )
+    await session.commit()
     return CartOut(
         id=cart.id,
         restaurant=(
@@ -76,19 +132,7 @@ async def cart_out(session: AsyncSession, cart: Cart) -> CartOut:
             if restaurant is not None
             else None
         ),
-        items=[
-            CartLineOut(
-                id=item.id,
-                menu_item_id=menu_item.id,
-                name=menu_item.name,
-                price=menu_item.price,
-                qty=item.qty,
-                veg=menu_item.veg,
-                available=menu_item.available,
-                line_total=menu_item.price * item.qty,
-            )
-            for item, menu_item in lines
-        ],
+        items=out_lines,
         item_count=sum(item.qty for item, _ in lines),
         subtotal=quoted.subtotal,
         delivery_fee=quoted.delivery_fee,
@@ -96,6 +140,16 @@ async def cart_out(session: AsyncSession, cart: Cart) -> CartOut:
         tax=quoted.tax,
         total=quoted.total,
         coupon_code=coupon_code,
+        nutrition=(
+            {
+                **{key: round(value, 1) for key, value in totals.items()},
+                "allergens": sorted(allergens),
+                "estimate": True,
+            }
+            if lines
+            else None
+        ),
+        rescue_saving=pricing.money(rescue_saving),
     )
 
 
@@ -114,6 +168,16 @@ async def add_item(session: AsyncSession, customer_id: UUID, payload: CartItemIn
     if restaurant is None or not restaurant.is_active:
         raise BadRequestError("restaurant is not accepting orders")
 
+    listing = None
+    if payload.rescue_listing_id is not None:
+        listing = await session.get(RescueListing, payload.rescue_listing_id)
+        if (
+            listing is None
+            or listing.menu_item_id != menu_item.id
+            or not rescue_service.is_live(listing)
+        ):
+            raise BadRequestError("this rescue deal is no longer available")
+
     cart = await _get_or_create(session, customer_id)
     existing_lines = await _load_lines(session, cart)
     if existing_lines and cart.restaurant_id != menu_item.restaurant_id:
@@ -128,10 +192,24 @@ async def add_item(session: AsyncSession, customer_id: UUID, payload: CartItemIn
             )
         )
     ).scalar_one_or_none()
+    limit = min(MAX_QTY, listing.qty_left) if listing is not None else MAX_QTY
     if line is None:
-        session.add(CartItem(cart_id=cart.id, menu_item_id=menu_item.id, qty=payload.qty))
+        session.add(
+            CartItem(
+                cart_id=cart.id,
+                menu_item_id=menu_item.id,
+                qty=min(limit, payload.qty),
+                rescue_listing_id=listing.id if listing is not None else None,
+            )
+        )
     else:
-        line.qty = min(MAX_QTY, line.qty + payload.qty)
+        if listing is not None:
+            line.rescue_listing_id = listing.id
+        elif line.rescue_listing_id is not None:
+            rescue = await session.get(RescueListing, line.rescue_listing_id)
+            if rescue is not None and rescue_service.is_live(rescue):
+                limit = min(MAX_QTY, rescue.qty_left)
+        line.qty = min(limit, line.qty + payload.qty)
     await session.commit()
     await session.refresh(cart)
     return await cart_out(session, cart)
@@ -150,6 +228,13 @@ async def update_item(
     if payload.qty == 0:
         await session.delete(line)
     else:
+        if line.rescue_listing_id is not None:
+            listing = await session.get(RescueListing, line.rescue_listing_id)
+            if listing is not None and rescue_service.is_live(listing):
+                if payload.qty > listing.qty_left:
+                    raise BadRequestError(
+                        f"only {listing.qty_left} left in this rescue deal"
+                    )
         line.qty = payload.qty
     await session.commit()
     remaining = await _load_lines(session, cart)
@@ -168,8 +253,9 @@ async def remove_item(session: AsyncSession, customer_id: UUID, line_id: UUID) -
 async def apply_coupon(session: AsyncSession, customer_id: UUID, code: str | None) -> CartOut:
     cart = await _get_or_create(session, customer_id)
     lines = await _load_lines(session, cart)
+    prices = await effective_prices(session, lines)
     subtotal = sum(
-        (menu_item.price * item.qty for item, menu_item in lines),
+        (prices[item.id][0] * item.qty for item, _ in lines),
         start=Decimal("0.00"),
     )
     restaurant = (

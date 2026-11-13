@@ -357,6 +357,293 @@ export interface BrowseRestaurant {
   image_url: string | null;
   is_active: boolean;
   distance_km: number | null;
+  kitchen_type?: string;
+  price_parity?: boolean;
+  trust_score?: number | null;
+  trust_grade?: string | null;
+  trust_badges?: string[];
+  trust_warnings?: string[];
+  rescue_live?: number;
+  matching_dishes?: Array<{
+    id: string;
+    name: string;
+    price: string;
+    veg: boolean;
+    portion_grams: number | null;
+  }>;
+}
+
+export interface NutritionView {
+  grams: number;
+  grams_source: "measured" | "declared" | "typical";
+  kcal: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  fibre_g: number;
+  allergens: string[];
+  source: string | null;
+  confidence: number | null;
+  estimate: boolean;
+}
+
+export interface RescueDeal {
+  id: string;
+  restaurant_id: string;
+  restaurant_name: string | null;
+  menu_item_id: string;
+  name: string;
+  veg: boolean;
+  portion_grams: number | null;
+  original_price: string;
+  current_price: string;
+  price_in_10_min: string;
+  floor_price: string;
+  discount_pct: number;
+  qty_left: number;
+  qty_total: number;
+  starts_at: string;
+  ends_at: string;
+  status: string;
+  distance_km: number | null;
+}
+
+export interface DeliveryProof {
+  method: string;
+  verified_at: string;
+  distance_m: number;
+  radius_m: number;
+  location_source: string;
+  location_accuracy_m: number | null;
+}
+
+export interface BatchDrop {
+  assignment_id: string;
+  order_id: string;
+  order_number: string | null;
+  sequence: number;
+  status: string;
+  delivery_address: string | null;
+  drop_lat: number;
+  drop_lng: number;
+  shared: boolean;
+}
+
+export interface DelaySegment {
+  owner: "restaurant" | "platform" | "rider";
+  stage: string;
+  expected_min: number;
+  actual_min: number;
+  over_min: number;
+}
+
+export interface HonestStatus {
+  order_id: string;
+  status: OrderStatus;
+  headline: string;
+  detail: string;
+  waiting_on: "restaurant" | "platform" | "rider" | "none";
+  minutes_since_placed: number;
+  riders_asked: number;
+  live_eta_min: number | null;
+  promised_min_left: number | null;
+  running_late: boolean;
+  free_cancel: string | null;
+  can_cancel: boolean;
+  batch: {
+    size: number;
+    your_drop: number | null;
+    drops: Array<{ sequence: number | null; is_you: boolean; status: string }>;
+    saving: string;
+  } | null;
+  delivery_mode: "solo" | "shared";
+  attribution: {
+    segments: DelaySegment[];
+    over_by_owner: Record<string, number>;
+    late_min: number | null;
+    message?: string | null;
+  } | null;
+  compensation: string;
+  proof: DeliveryProof | null;
+  estimate_basis: string;
+}
+
+export interface TrustComponent {
+  key: string;
+  label: string;
+  points: number;
+  max: number;
+  detail: string;
+}
+
+export interface PlaceReview {
+  rating: number | null;
+  text: string;
+  author: string | null;
+  relative_time: string | null;
+  flags?: string[];
+}
+
+export interface TrustProfile {
+  restaurant_id: string;
+  restaurant_name: string;
+  lat: number;
+  lng: number;
+  address: string | null;
+  kitchen_type: string;
+  price_parity: boolean;
+  fssai: {
+    status: "missing" | "invalid" | "expired" | "format_ok";
+    label: string;
+    number: string | null;
+    kind: string | null;
+    valid_until: string | null;
+    verify_url: string;
+  };
+  reality: {
+    provider: "google" | "osm" | "none";
+    verdict: string;
+    checked_at: string;
+    match?: {
+      place_id: string | null;
+      name: string;
+      address: string | null;
+      distance_m: number | null;
+      name_similarity: number;
+      rating: number | null;
+      rating_count: number | null;
+      business_status: string | null;
+      maps_url: string | null;
+      opening_hours: string[];
+      photos: Array<{ url: string; attribution: string }>;
+      reviews: PlaceReview[];
+    } | null;
+    signals?: {
+      quantity_mentions: number;
+      cloud_kitchen_mentions: number;
+      hygiene_mentions: number;
+      reviews_read: number;
+    };
+    osm?: {
+      food_places_at_pin: Array<{
+        name: string;
+        amenity: string | null;
+        distance_m: number | null;
+        name_similarity: number;
+      }>;
+      object_at_pin: {
+        category: string | null;
+        type: string | null;
+        name: string | null;
+        distance_m?: number | null;
+      } | null;
+      address: string | null;
+    } | null;
+  };
+  shared_kitchen: Array<{ id: string; name: string; kitchen_type: string }>;
+  kitchen_photos: Array<{ id: string; url: string; caption: string; taken_at: string }>;
+  quantity_feedback: { as_described: number; short: number };
+  portion_coverage: { menu_items: number; declared: number; verified: number };
+  providers: { google_maps: boolean; openstreetmap: boolean };
+  score: number;
+  grade: string;
+  components: TrustComponent[];
+  badges: string[];
+  warnings: string[];
+}
+
+export interface NutritionToday {
+  goal_kcal: number;
+  goal_is_default: boolean;
+  totals: { kcal: number; protein_g: number; carbs_g: number; fat_g: number; fibre_g: number };
+  remaining_kcal: number;
+  lines: Array<{
+    order_id: string;
+    order_number: string | null;
+    name: string;
+    qty: number;
+    kcal: number;
+    protein_g: number;
+  }>;
+  estimate: boolean;
+}
+
+export interface PortionEstimate {
+  menu_item_id: string;
+  method: string;
+  grams: number;
+  low_grams: number;
+  high_grams: number;
+  serves: number;
+  confidence: number;
+  explanation: string[];
+  ai_check: {
+    provider: string;
+    dish_detected: string | null;
+    matches_menu_item: boolean | null;
+    estimated_grams: number | null;
+    pieces: number | null;
+    reference_visible: boolean | null;
+    looks_real_photo: boolean | null;
+    notes: string | null;
+    agreement: string | null;
+    cost_usd: number;
+  } | null;
+  ai_available: boolean;
+}
+
+export interface PortionConfig {
+  references: Array<{ key: string; cm: number | null; label: string }>;
+  profiles: Array<{ key: string; label: string; depth_cm: number; fill: number; density: number }>;
+  ai_available: boolean;
+}
+
+export interface ForecastRow {
+  menu_item_id: string;
+  name: string;
+  price: string;
+  prepared: number | null;
+  sold_today: number;
+  pace_per_hour: number;
+  projected_leftover: number | null;
+  suggestion: {
+    qty: number;
+    start_price: string;
+    floor_price: string;
+    duration_min: number;
+    reason: string;
+  } | null;
+  live_listing: RescueDeal | null;
+}
+
+export interface RescueForecast {
+  day: string;
+  closing_at: string;
+  hours_to_close: number;
+  horizon_hours: number;
+  method: string;
+  items: ForecastRow[];
+}
+
+export interface AiUsage {
+  since: string;
+  budget_usd: number;
+  spent_usd: number;
+  remaining_usd: number;
+  calls: number;
+  cache_hits: number;
+  cache_hit_rate: number | null;
+  gemini_enabled: boolean;
+  google_maps_enabled: boolean;
+  lines: Array<{
+    provider: string;
+    purpose: string;
+    calls: number;
+    cache_hits: number;
+    input_tokens: number;
+    output_tokens: number;
+    est_cost_usd: number;
+  }>;
 }
 
 export interface BrowseMenuItem {
@@ -370,6 +657,15 @@ export interface BrowseMenuItem {
   available: boolean;
   description: string;
   image_url: string | null;
+  portion_grams?: number | null;
+  portion_serves?: number | null;
+  portion_pieces?: number | null;
+  portion_method?: string;
+  portion_confidence?: number | null;
+  portion_photo_url?: string | null;
+  portion_verified_at?: string | null;
+  nutrition?: NutritionView | null;
+  rescue?: RescueDeal | null;
 }
 
 export interface CartLine {
@@ -381,6 +677,11 @@ export interface CartLine {
   veg: boolean;
   available: boolean;
   line_total: string;
+  original_price?: string | null;
+  rescue_listing_id?: string | null;
+  rescue_ends_at?: string | null;
+  kcal?: number | null;
+  protein_g?: number | null;
 }
 
 export interface Cart {
@@ -401,6 +702,15 @@ export interface Cart {
   tax: string;
   total: string;
   coupon_code: string | null;
+  nutrition?: {
+    kcal: number;
+    protein_g: number;
+    carbs_g: number;
+    fat_g: number;
+    allergens: string[];
+    estimate: boolean;
+  } | null;
+  rescue_saving?: string;
 }
 
 export interface Coupon {
@@ -440,6 +750,14 @@ export interface MarketOrder {
   delay_flags: string[];
   reassign_count: number;
   can_review: boolean;
+  delivery_otp?: string | null;
+  delivery_mode?: "solo" | "shared";
+  shared_saving?: string;
+  batch_id?: string | null;
+  batch_sequence?: number | null;
+  compensation?: string;
+  delivery_proof?: DeliveryProof | null;
+  otp_attempts?: number;
 }
 
 export interface Address {
@@ -463,6 +781,7 @@ export interface Profile {
   home_lng: number;
   budget_pref: string | null;
   diet_pref: string | null;
+  daily_kcal_goal?: number | null;
 }
 
 export interface RiderProfile {
@@ -507,12 +826,15 @@ export interface Offer {
   estimated_earnings: string;
   expires_at: string;
   offered_at: string;
+  batched_with?: string | null;
+  batch_extra_km?: number | null;
 }
 
 export interface AssignmentAction {
   assignment_id: string;
   status: string;
   order: MarketOrder;
+  batch?: BatchDrop[] | null;
 }
 
 export interface EarningsEntry {
@@ -630,6 +952,7 @@ export const browseRestaurants = (params: {
   min_rating?: number;
   lat?: number;
   lng?: number;
+  sort?: "trust" | "rating";
 } = {}) =>
   request<BrowseRestaurant[]>(
     `/api/v1/restaurants${query({
@@ -639,6 +962,7 @@ export const browseRestaurants = (params: {
       min_rating: params.min_rating,
       lat: params.lat,
       lng: params.lng,
+      sort: params.sort,
     })}`,
   );
 
@@ -669,10 +993,14 @@ export const deleteAddress = (addressId: string) =>
 
 export const getCart = () => request<Cart>("/api/v1/cart");
 
-export const addCartItem = (menuItemId: string, qty = 1) =>
+export const addCartItem = (menuItemId: string, qty = 1, rescueListingId?: string) =>
   request<Cart>("/api/v1/cart/items", {
     method: "POST",
-    body: JSON.stringify({ menu_item_id: menuItemId, qty }),
+    body: JSON.stringify({
+      menu_item_id: menuItemId,
+      qty,
+      ...(rescueListingId ? { rescue_listing_id: rescueListingId } : {}),
+    }),
   });
 
 export const updateCartItem = (lineId: string, qty: number) =>
@@ -701,6 +1029,7 @@ export const checkout = (payload: {
   instructions?: string;
   payment_method: "COD" | "UPI_DEMO";
   coupon_code?: string | null;
+  delivery_mode?: "solo" | "shared";
 }) =>
   request<MarketOrder>("/api/v1/checkout", {
     method: "POST",
@@ -723,7 +1052,12 @@ export const reorder = (orderId: string) =>
 
 export const reviewOrder = (
   orderId: string,
-  payload: { restaurant_rating: number; rider_rating?: number; comment?: string },
+  payload: {
+    restaurant_rating: number;
+    rider_rating?: number;
+    comment?: string;
+    quantity_feedback?: "as_described" | "more" | "less" | "much_less";
+  },
 ) =>
   request<ReviewResult>(`/api/v1/orders/${orderId}/review`, {
     method: "POST",
@@ -785,10 +1119,11 @@ export const getEarnings = () => request<Earnings>("/api/v1/rider/earnings");
 export const riderAssignmentAction = (
   assignmentId: string,
   action: "arrived-restaurant" | "pickup" | "arrived-customer" | "complete",
+  otp?: string,
 ) =>
   request<AssignmentAction>(
     `/api/v1/rider/assignments/${assignmentId}/${action}`,
-    { method: "POST", body: "{}" },
+    { method: "POST", body: JSON.stringify(otp ? { otp } : {}) },
   );
 
 export const getManagerRestaurant = () =>
@@ -847,3 +1182,136 @@ export const restaurantOrderSocketUrl = () =>
 
 export const notificationSocketUrl = () =>
   `${WS_URL}/ws/notifications?token=${encodeURIComponent(getAuthToken() ?? "")}`;
+
+// --- Trust layer -----------------------------------------------------------
+
+export const mediaUrl = (path: string | null | undefined): string | null =>
+  path ? (path.startsWith("http") ? path : `${API_URL}${path}`) : null;
+
+export const getRestaurantTrust = (restaurantId: string, refresh = false) =>
+  request<TrustProfile>(
+    `/api/v1/restaurants/${restaurantId}/trust${refresh ? "?refresh=true" : ""}`,
+  );
+
+export const getRescueLive = (lat?: number, lng?: number) =>
+  request<RescueDeal[]>(`/api/v1/rescue/live${query({ lat, lng })}`);
+
+export const getNutritionToday = () =>
+  request<NutritionToday>("/api/v1/me/nutrition/today");
+
+export const getHonestStatus = (orderId: string) =>
+  request<HonestStatus>(`/api/v1/orders/${orderId}/honest-status`);
+
+export const reportNotReceived = (orderId: string, note?: string) =>
+  request<{ verdict: string; message: string; proof: DeliveryProof | null }>(
+    `/api/v1/orders/${orderId}/not-received`,
+    { method: "POST", body: JSON.stringify(note ? { note } : {}) },
+  );
+
+export const getMyTrust = (refresh = false) =>
+  request<TrustProfile>(`/api/v1/restaurant/trust${refresh ? "?refresh=true" : ""}`);
+
+export const patchMyTrust = (payload: {
+  fssai_license?: string;
+  fssai_valid_until?: string;
+  kitchen_type?: "dine_in" | "cloud_kitchen" | "shared_kitchen";
+  price_parity?: boolean;
+}) =>
+  request<TrustProfile>("/api/v1/restaurant/trust", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+
+export interface ListingCandidate {
+  place_id: string | null;
+  name: string;
+  address: string | null;
+  distance_m: number | null;
+  rating: number | null;
+  rating_count: number | null;
+}
+
+export const searchMyListing = (q?: string) =>
+  request<{ provider: string; candidates: ListingCandidate[] }>(
+    `/api/v1/restaurant/places/search${query({ q })}`,
+  );
+
+export const linkMyListing = (placeId: string) =>
+  request<TrustProfile>("/api/v1/restaurant/places/link", {
+    method: "POST",
+    body: JSON.stringify({ place_id: placeId }),
+  });
+
+export const uploadKitchenPhoto = (image: string, caption: string) =>
+  request<{ id: string; url: string; caption: string; taken_at: string }>(
+    "/api/v1/restaurant/kitchen-photos",
+    { method: "POST", body: JSON.stringify({ image, caption }) },
+  );
+
+export const getPortionConfig = () =>
+  request<PortionConfig>("/api/v1/restaurant/portion/config");
+
+export const estimatePortion = (itemId: string, payload: Record<string, unknown>) =>
+  request<PortionEstimate>(`/api/v1/restaurant/menu/${itemId}/portion/estimate`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+export const publishPortion = (
+  itemId: string,
+  payload: {
+    method: string;
+    grams?: number | null;
+    serves?: number | null;
+    pieces?: number | null;
+    confidence?: number | null;
+    image?: string | null;
+  },
+) =>
+  request<BrowseMenuItem>(`/api/v1/restaurant/menu/${itemId}/portion`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+export const getRescueForecast = () =>
+  request<RescueForecast>("/api/v1/restaurant/rescue/forecast");
+
+export const logPrep = (menuItemId: string, preparedQty: number) =>
+  request<RescueForecast>("/api/v1/restaurant/rescue/prep", {
+    method: "POST",
+    body: JSON.stringify({ menu_item_id: menuItemId, prepared_qty: preparedQty }),
+  });
+
+export const createRescue = (payload: {
+  menu_item_id: string;
+  qty: number;
+  start_price: string;
+  floor_price: string;
+  duration_min: number;
+}) =>
+  request<RescueDeal>("/api/v1/restaurant/rescue/listings", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+export const endRescue = (listingId: string) =>
+  request<RescueForecast>(`/api/v1/restaurant/rescue/listings/${listingId}/end`, {
+    method: "POST",
+    body: "{}",
+  });
+
+export const getAiUsage = () => request<AiUsage>("/api/v1/ai/usage");
+
+/** Downscale a photo in the browser before upload (keeps payloads small). */
+export async function fileToDataUrl(file: File, maxSide = 1280, quality = 0.85): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Canvas is not available in this browser.");
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return canvas.toDataURL("image/jpeg", quality);
+}

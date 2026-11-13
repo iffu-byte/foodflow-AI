@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.assignment import router as assignment_router
 from app.api.auth import router as auth_router
@@ -22,11 +23,13 @@ from app.api.restaurant_console import router as restaurant_console_router
 from app.api.restaurants import router as restaurants_router
 from app.api.rider import router as rider_router
 from app.api.riders import router as riders_router
+from app.api.trust_layer import router as trust_layer_router
 from app.api.ws_marketplace import router as ws_marketplace_router
 from app.config import settings
 from app.db import get_sessionmaker
 from app.domain.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.marketplace import dispatch
+from app.media import media_root
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +100,10 @@ app.include_router(rider_router)
 app.include_router(restaurant_console_router)
 app.include_router(inbox_router)
 app.include_router(ws_marketplace_router)
+app.include_router(trust_layer_router)
+
+# Kitchen and portion photos uploaded through the app.
+app.mount("/media", StaticFiles(directory=media_root()), name="media")
 
 
 @app.get("/")

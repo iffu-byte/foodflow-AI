@@ -37,6 +37,7 @@ class Quote:
     tax: Decimal
     total: Decimal
     coupon_code: str | None
+    shared_saving: Decimal = Decimal("0.00")
 
 
 def money(value: Decimal | float | int | str) -> Decimal:
@@ -65,6 +66,8 @@ def quote(
     subtotal: Decimal,
     restaurant_delivery_fee: Decimal,
     coupon_code: str | None = None,
+    shared: bool = False,
+    shared_saving: Decimal = Decimal("15.00"),
 ) -> Quote:
     subtotal = money(subtotal)
     delivery_fee = money(restaurant_delivery_fee)
@@ -73,6 +76,9 @@ def quote(
     discount, free_delivery, normalized = coupon_discount(coupon_code, subtotal)
     if free_delivery:
         delivery_fee = Decimal("0.00")
+    # Sharing a rider with a same-route order is paid for out of the fee it saves.
+    saving = min(delivery_fee, money(shared_saving)) if shared else Decimal("0.00")
+    delivery_fee = money(delivery_fee - saving)
     taxable = max(Decimal("0.00"), subtotal - discount)
     tax = money(taxable * TAX_RATE)
     total = money(taxable + delivery_fee + tax)
@@ -83,4 +89,5 @@ def quote(
         tax=tax,
         total=total,
         coupon_code=normalized,
+        shared_saving=saving,
     )

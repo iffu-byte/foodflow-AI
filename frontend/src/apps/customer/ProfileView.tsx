@@ -4,10 +4,12 @@ import {
   ApiError,
   deleteAddress,
   getAddresses,
+  getNutritionToday,
   getProfile,
   updateProfile,
   type Address,
   type AuthUser,
+  type NutritionToday,
   type Profile,
 } from "../../lib/api";
 import { signOut } from "../../lib/session";
@@ -30,6 +32,8 @@ export function ProfileView({ user }: { user: AuthUser }) {
   const [homeLng, setHomeLng] = useState("");
   const [budget, setBudget] = useState("");
   const [diet, setDiet] = useState("");
+  const [kcalGoal, setKcalGoal] = useState("");
+  const [intake, setIntake] = useState<NutritionToday | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +54,7 @@ export function ProfileView({ user }: { user: AuthUser }) {
         setHomeLng(String(me.home_lng));
         setBudget(me.budget_pref ?? "");
         setDiet(me.diet_pref ?? "");
+        setKcalGoal(me.daily_kcal_goal ? String(me.daily_kcal_goal) : "");
       })
       .catch((err) => {
         if (!cancelled) {
@@ -59,6 +64,11 @@ export function ProfileView({ user }: { user: AuthUser }) {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+    void getNutritionToday()
+      .then((today) => {
+        if (!cancelled) setIntake(today);
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -77,7 +87,9 @@ export function ProfileView({ user }: { user: AuthUser }) {
         diet_pref: diet || null,
         home_lat: Number(homeLat),
         home_lng: Number(homeLng),
+        daily_kcal_goal: kcalGoal ? Number(kcalGoal) : null,
       });
+      void getNutritionToday().then(setIntake).catch(() => undefined);
       setProfile(next);
       setSaved(true);
       window.setTimeout(() => setSaved(false), 2500);
@@ -138,6 +150,59 @@ export function ProfileView({ user }: { user: AuthUser }) {
               Your home pin is used for distance and delivery estimates. You can use device
               GPS once when saving a delivery address; this profile is not live-tracked.
             </p>
+          </section>
+
+          <section className="rounded-[26px] border border-[#f4b942]/40 bg-[#f4b942]/10 p-4 sm:p-5">
+            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#8a5b0a]">
+              Nutrition today · estimated from what you ordered
+            </p>
+            {intake ? (
+              <>
+                <div className="mt-2 flex items-end justify-between gap-3">
+                  <p className="font-serif text-[30px] leading-none">
+                    {Math.round(intake.totals.kcal)}
+                    <span className="text-[14px] text-stone-500"> / {intake.goal_kcal} kcal</span>
+                  </p>
+                  <p className="text-[11px] text-stone-600">
+                    {intake.totals.protein_g} g protein · {intake.totals.carbs_g} g carbs ·{" "}
+                    {intake.totals.fat_g} g fat
+                  </p>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-stone-900/10">
+                  <div
+                    className={`h-full rounded-full ${
+                      intake.totals.kcal > intake.goal_kcal ? "bg-[#d94f2b]" : "bg-[#1f5b46]"
+                    }`}
+                    style={{
+                      width: `${Math.min(100, (intake.totals.kcal / intake.goal_kcal) * 100)}%`,
+                    }}
+                  />
+                </div>
+                {intake.lines.length ? (
+                  <ul className="mt-2 space-y-0.5 text-[11px] text-stone-600">
+                    {intake.lines.map((line) => (
+                      <li key={`${line.order_id}-${line.name}`}>
+                        {line.name} ×{line.qty} · {Math.round(line.kcal)} kcal
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-[11px] text-stone-500">Nothing ordered yet today.</p>
+                )}
+              </>
+            ) : null}
+            <div className="mt-3 max-w-[220px]">
+              <Field
+                label="Daily calorie goal"
+                value={kcalGoal}
+                onChange={setKcalGoal}
+                type="number"
+                min={800}
+                max={6000}
+                step={50}
+                placeholder="2000"
+              />
+            </div>
           </section>
 
           <section className="rounded-[26px] border border-stone-900/10 bg-[#fffcf6]/70 p-4 sm:p-5">

@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import String, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -28,6 +28,8 @@ from app.marketplace.schemas import (
     RestaurantMenuItemOut,
 )
 from app.marketplace.serializers import order_out
+from app.nutrition import service as nutrition_service
+from app.rescue import service as rescue_service
 
 ACTIVE_RESTAURANT_STATUSES = (
     OrderStatus.PLACED,
@@ -41,7 +43,7 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-def menu_item_out(item: MenuItem) -> RestaurantMenuItemOut:
+def menu_item_out(item: MenuItem, rescue: dict | None = None) -> RestaurantMenuItemOut:
     return RestaurantMenuItemOut(
         id=item.id,
         name=item.name,
@@ -53,18 +55,37 @@ def menu_item_out(item: MenuItem) -> RestaurantMenuItemOut:
         available=item.available,
         description=item.description,
         image_url=item.image_url,
+        portion_grams=item.portion_grams,
+        portion_serves=item.portion_serves,
+        portion_pieces=item.portion_pieces,
+        portion_method=item.portion_method,
+        portion_confidence=item.portion_confidence,
+        portion_photo_url=item.portion_photo_url,
+        portion_verified_at=item.portion_verified_at,
+        nutrition=nutrition_service.portion_view(item),
+        rescue=rescue,
     )
 
 
 async def menu(session: AsyncSession, restaurant: Restaurant) -> list[RestaurantMenuItemOut]:
-    items = (
-        await session.execute(
-            select(MenuItem)
-            .where(MenuItem.restaurant_id == restaurant.id)
-            .order_by(MenuItem.category, MenuItem.name)
+    items = list(
+        (
+            await session.execute(
+                select(MenuItem)
+                .where(MenuItem.restaurant_id == restaurant.id)
+                .order_by(MenuItem.category, MenuItem.name)
+            )
+        ).scalars()
+    )
+    await nutrition_service.ensure_for_items(session, items)
+    live = await rescue_service.live_for_items(session, [item.id for item in items])
+    return [
+        menu_item_out(
+            item,
+            rescue_service.listing_out(live[item.id], item) if item.id in live else None,
         )
-    ).scalars()
-    return [menu_item_out(item) for item in items]
+        for item in items
+    ]
 
 
 async def update_menu_item(
@@ -313,7 +334,15 @@ async def browse(
 ) -> list[tuple[Restaurant, float | None]]:
     stmt = select(Restaurant).where(Restaurant.is_active.is_(True))
     if q:
-        stmt = stmt.where(Restaurant.name.ilike(f"%{q}%"))
+        # Dish-first search: a kitchen matches on its name, cuisine or any dish.
+        dish_ids = select(MenuItem.restaurant_id).where(
+            MenuItem.name.ilike(f"%{q}%"), MenuItem.available.is_(True)
+        )
+        stmt = stmt.where(
+            Restaurant.name.ilike(f"%{q}%")
+            | Restaurant.id.in_(dish_ids)
+            | func.cast(Restaurant.cuisine, String).ilike(f"%{q}%")
+        )
     if cuisine:
         stmt = stmt.where(Restaurant.cuisine.contains([cuisine]))
     if min_rating is not None:
