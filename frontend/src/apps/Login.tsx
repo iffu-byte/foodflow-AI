@@ -20,31 +20,34 @@ const DEMO_ACCOUNTS: Array<{
     role: "customer",
     label: "Customer",
     email: "customer@foodflow.demo",
-    blurb: "Asha Rao · order, track and review",
+    blurb: "Asha Rao · order food and track it",
     accent: "bg-[#d94f2b]",
   },
   {
     role: "rider",
-    label: "Rider",
+    label: "FoodFlow Captain",
     email: "rider@foodflow.demo",
-    blurb: "Arjun · offers and live deliveries",
+    blurb: "Arjun · pick up and deliver orders",
     accent: "bg-[#1f5b46]",
   },
   {
     role: "restaurant",
-    label: "Restaurant",
+    label: "Restaurant Owner",
     email: "restaurant@foodflow.demo",
-    blurb: "Spice Route · kitchen operations",
+    blurb: "Spice Route · orders, menu, kitchen",
     accent: "bg-[#b47816]",
   },
-  {
-    role: "admin",
-    label: "Admin",
-    email: "admin@foodflow.demo",
-    blurb: "Ops console · dispatch and models",
-    accent: "bg-stone-900",
-  },
 ];
+
+// The operations console stays available for judges and admins, but it is not
+// one of the three everyday roles.
+const OPS_ACCOUNT = {
+  role: "admin" as Role,
+  label: "Operations console",
+  email: "admin@foodflow.demo",
+  blurb: "AI cost meter, dispatch, models",
+  accent: "bg-stone-900",
+};
 
 export function roleHome(role: Role): string {
   if (role === "rider") return "/rider";
@@ -130,7 +133,7 @@ export default function Login({ returnTo }: { returnTo?: string }) {
 
           <div className="relative mt-16 max-w-xl">
             <p className="text-[10px] uppercase tracking-[0.26em] text-[#e8a27d]">
-              One city. Four sides of dinner.
+              One city. Three sides of dinner.
             </p>
             <h1 className="mt-5 font-serif text-[52px] italic leading-[0.94] tracking-[-0.02em] sm:text-[72px]">
               Dinner is
@@ -138,9 +141,8 @@ export default function Login({ returnTo }: { returnTo?: string }) {
               a feeling.
             </h1>
             <p className="mt-5 max-w-md text-[15px] leading-relaxed text-stone-400">
-              Order from the neighbourhood, run a kitchen, ride the last mile, or watch
-              the whole city move. Same orders, same ETA engine, four purpose-built
-              views.
+              Order food as a customer, run your kitchen as a restaurant owner, or deliver
+              as a FoodFlow Captain. Same live orders, three simple apps.
             </p>
             <div className="mt-10 flex flex-wrap gap-x-8 gap-y-4 border-t border-white/10 pt-6">
               {[
@@ -241,7 +243,7 @@ export default function Login({ returnTo }: { returnTo?: string }) {
                 </span>
                 <span className="h-px flex-1 bg-stone-900/10" />
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-2.5">
+              <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
                 {DEMO_ACCOUNTS.map((account) => (
                   <button
                     key={account.role}
@@ -266,6 +268,14 @@ export default function Login({ returnTo }: { returnTo?: string }) {
                   </button>
                 ))}
               </div>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void useDemo(OPS_ACCOUNT)}
+                className="mt-3 w-full text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-400 hover:text-stone-700"
+              >
+                Operations console (admin) →
+              </button>
             </div>
           </div>
         </section>

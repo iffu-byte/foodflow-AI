@@ -104,6 +104,8 @@ class Restaurant(Base):
     address: Mapped[str | None] = mapped_column(String(255))
     description: Mapped[str] = mapped_column(String(500), default="")
     image_url: Mapped[str | None] = mapped_column(String(500))
+    # Credit for the cover photo (author, licence, source) shown under the image.
+    image_credit: Mapped[dict] = mapped_column(JSONB, default=dict)
     min_order_value: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"))
     delivery_fee: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("29.00"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -133,6 +135,7 @@ class MenuItem(Base):
     tags: Mapped[list[str]] = mapped_column(JSONB, default=list)
     description: Mapped[str] = mapped_column(String(500), default="")
     image_url: Mapped[str | None] = mapped_column(String(500))
+    image_credit: Mapped[dict] = mapped_column(JSONB, default=dict)
     available: Mapped[bool] = mapped_column(Boolean, default=True)
     # Portion truth: declared or measured quantity shown before ordering.
     portion_grams: Mapped[int | None] = mapped_column(Integer)

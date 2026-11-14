@@ -41,6 +41,7 @@ from app.domain.models import (
     TrainingRow,
     User,
 )
+from app.images import service as images_service
 
 DEMO_NOW = datetime.now(UTC)
 DEMO_PASSWORD_HASH = hash_password(settings.demo_password)
@@ -672,6 +673,15 @@ async def seed(force: bool = False) -> None:
         await session.flush()
         await _seed_demo_orders(session)
         await session.commit()
+
+    # Real, credited dish photos from Wikimedia Commons. Optional: the demo still
+    # works offline, and `python -m app.images.service` can fetch them later.
+    try:
+        async with factory() as session:
+            photos = await images_service.backfill(session)
+        print(f"Real dish photos: {photos}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"Skipped dish photos ({exc}); run python -m app.images.service later.")
 
     menu_count = sum(len(restaurant["menu"]) for restaurant in ALL_RESTAURANTS)
     print(

@@ -45,9 +45,12 @@ function statusOf(item: BrowseMenuItem): { label: string; tone: string } {
 export function PortionStudio({
   menu,
   onItemUpdated,
+  onlyItemId,
 }: {
   menu: BrowseMenuItem[];
   onItemUpdated: (item: BrowseMenuItem) => void;
+  /** Opened from one dish on the Menu page: no dish list or page header. */
+  onlyItemId?: string;
 }) {
   const [config, setConfig] = useState<PortionConfig | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -80,11 +83,15 @@ export function PortionStudio({
   }, []);
 
   useEffect(() => {
+    if (onlyItemId) {
+      setSelectedId(onlyItemId);
+      return;
+    }
     if (!selectedId && menu.length) {
       const first = menu.find((item) => !verifiedMethods.has(item.portion_method ?? "")) ?? menu[0];
       setSelectedId(first.id);
     }
-  }, [menu, selectedId]);
+  }, [menu, selectedId, onlyItemId]);
 
   const item = useMemo(() => menu.find((row) => row.id === selectedId) ?? null, [menu, selectedId]);
 
@@ -241,7 +248,7 @@ export function PortionStudio({
 
   return (
     <div className="space-y-5">
-      <div>
+      <div className={onlyItemId ? "hidden" : ""}>
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500">
           Portion Studio
         </p>
@@ -259,8 +266,12 @@ export function PortionStudio({
       {error ? <Notice>{error}</Notice> : null}
       {done ? <Notice tone="success">{done}</Notice> : null}
 
-      <div className="grid gap-4 lg:grid-cols-[280px_1fr] lg:items-start">
-        <aside className="overflow-hidden rounded-[22px] border border-stone-900/10 bg-[#fffcf6]/70">
+      <div className={onlyItemId ? "" : "grid gap-4 lg:grid-cols-[280px_1fr] lg:items-start"}>
+        <aside
+          className={`overflow-hidden rounded-[22px] border border-stone-900/10 bg-[#fffcf6]/70 ${
+            onlyItemId ? "hidden" : ""
+          }`}
+        >
           {menu.map((row) => {
             const status = statusOf(row);
             return (

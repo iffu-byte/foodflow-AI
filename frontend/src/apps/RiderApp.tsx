@@ -47,12 +47,11 @@ import {
 
 type Tab = "overview" | "offers" | "delivery" | "earnings" | "history";
 
+// Two pages, like delivery-partner apps: Home (go online, take an order,
+// deliver it) and Earnings (money and past trips).
 const navBase: NavItem[] = [
-  { id: "overview", label: "Today" },
-  { id: "offers", label: "Offers" },
-  { id: "delivery", label: "Delivery" },
+  { id: "overview", label: "Home" },
   { id: "earnings", label: "Earnings" },
-  { id: "history", label: "History" },
 ];
 
 const actionByStatus: Record<
@@ -238,7 +237,7 @@ export default function RiderApp({
       const result = await acceptOffer(offer.assignment_id);
       setActive(result);
       setOffers((rows) => rows.filter((row) => row.assignment_id !== offer.assignment_id));
-      setTab("delivery");
+      setTab("overview");
       setToast("Pickup accepted. Head to the restaurant.");
       void refresh();
     } catch (err) {
@@ -321,7 +320,7 @@ export default function RiderApp({
   };
 
   const nav = navBase.map((item) =>
-    item.id === "offers" && offers.length
+    item.id === "overview" && offers.length && !active
       ? { ...item, badge: offers.length }
       : item,
   );
@@ -334,7 +333,7 @@ export default function RiderApp({
   if (!profile) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
-        <p className="font-serif text-[28px] italic">Rider profile not available.</p>
+        <p className="font-serif text-[28px] italic">Captain profile not available.</p>
         <p className="mt-2 text-sm text-stone-500">{error}</p>
       </div>
     );
@@ -343,7 +342,7 @@ export default function RiderApp({
   return (
     <MarketShell
       user={user}
-      roleLabel="Rider · last mile"
+      roleLabel="FoodFlow Captain"
       nav={nav}
       active={tab}
       onNavigate={onNavigate}
@@ -356,7 +355,7 @@ export default function RiderApp({
         </div>
       ) : null}
 
-      {tab === "overview" ? (
+      {tab === "overview" && !active ? (
         <Overview
           profile={profile}
           online={online}
@@ -367,14 +366,17 @@ export default function RiderApp({
           locationMode={riderLocation.mode}
           locationAccuracyM={riderLocation.accuracyM}
           onToggle={() => void toggleAvailability()}
-          onOffers={() => setTab("offers")}
-          onDelivery={() => setTab("delivery")}
+          onOffers={() =>
+            document.getElementById("captain-offers")?.scrollIntoView({ behavior: "smooth" })
+          }
+          onDelivery={() => setTab("overview")}
           onPing={() => void pingNow()}
           onRetryGps={riderLocation.retryGps}
         />
       ) : null}
 
-      {tab === "offers" ? (
+      {tab === "overview" && !active ? (
+        <div id="captain-offers" className="mt-8">
         <OffersView
           offers={offers}
           online={online}
@@ -386,9 +388,10 @@ export default function RiderApp({
           onPass={(offer) => void pass(offer)}
           onRefresh={() => void refresh()}
         />
+        </div>
       ) : null}
 
-      {tab === "delivery" ? (
+      {tab === "overview" && active ? (
         <DeliveryView
           active={active}
           tracking={activeTracking}
@@ -400,13 +403,16 @@ export default function RiderApp({
           onAction={() => void runAction()}
           onPing={() => void pingNow()}
           onRetryGps={riderLocation.retryGps}
-          onBrowseOffers={() => setTab("offers")}
+          onBrowseOffers={() => setTab("overview")}
         />
       ) : null}
 
-      {tab === "earnings" ? <EarningsView earnings={earnings} /> : null}
-
-      {tab === "history" ? <HistoryView history={history} /> : null}
+      {tab === "earnings" ? (
+        <div className="space-y-8">
+          <EarningsView earnings={earnings} />
+          <HistoryView history={history} />
+        </div>
+      ) : null}
 
       {otpOpen ? (
         <Modal title="Enter the customer's delivery code" onClose={() => setOtpOpen(false)}>

@@ -22,6 +22,7 @@ from app.domain import service as domain_service
 from app.domain.exceptions import BadRequestError, NotFoundError
 from app.domain.models import OrderEvent, OrderStatus, Restaurant
 from app.honesty import service as honesty_service
+from app.images import service as images_service
 from app.marketplace import access, notifications
 from app.marketplace.restaurant import menu_item_out
 from app.marketplace.schemas import RestaurantMenuItemOut
@@ -262,6 +263,16 @@ async def portion_publish(
     return menu_item_out(item)
 
 
+@router.post("/restaurant/menu/{item_id}/photo", response_model=RestaurantMenuItemOut)
+async def dish_photo(
+    item_id: UUID, payload: PhotoIn, user: RestaurantUser, session: SessionDep
+) -> RestaurantMenuItemOut:
+    """The restaurant's own photo of a dish replaces any stock photo."""
+    restaurant = await access.restaurant_for(session, user)
+    item = await images_service.upload_dish_photo(session, restaurant, item_id, payload.image)
+    return menu_item_out(item)
+
+
 # --- Restaurant: Rescue a Meal ---------------------------------------------
 
 
@@ -305,3 +316,9 @@ async def rescue_end(listing_id: UUID, user: RestaurantUser, session: SessionDep
 @router.get("/ai/usage")
 async def ai_usage(user: AdminUser, session: SessionDep) -> dict:
     return await ai_service.usage_summary(session)
+
+
+@router.post("/images/backfill")
+async def images_backfill(user: AdminUser, session: SessionDep, force: bool = False) -> dict:
+    """Fetch real, credited dish photos for every dish that has none."""
+    return await images_service.backfill(session, force=force)

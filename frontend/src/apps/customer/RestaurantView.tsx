@@ -26,6 +26,7 @@ import {
   SimBadge,
   Spinner,
 } from "../../components/market";
+import { Photo } from "../../components/Photo";
 import {
   NutritionChips,
   PortionLine,
@@ -245,10 +246,18 @@ export function RestaurantView({
               ))}
             </div>
           </div>
-          <ProductArt
-            cuisine={restaurant.cuisine}
-            name={restaurant.name}
+          <Photo
+            src={restaurant.image_url}
+            credit={restaurant.image_credit}
+            alt={restaurant.image_credit?.dish ?? restaurant.name}
             className="min-h-[240px] lg:min-h-full"
+            fallback={
+              <ProductArt
+                cuisine={restaurant.cuisine}
+                name={restaurant.name}
+                className="min-h-[240px] lg:min-h-full"
+              />
+            }
           />
         </div>
       </section>
@@ -356,6 +365,42 @@ export function RestaurantView({
               <div className="overflow-hidden rounded-[24px] border border-stone-900/10 bg-[#fffcf6]/70">
                 {items.map((item, index) => {
                   const line = cartLines.get(item.id);
+                  const action = line ? (
+                            <div className="flex items-center rounded-full border border-[#1f5b46]/30 bg-[#1f5b46]/5">
+                              <button
+                                type="button"
+                                disabled={busyItem === line.id}
+                                onClick={() => void setQty(line.id, line.qty - 1)}
+                                className="px-2.5 py-1.5 text-[14px] text-[#1f5b46]"
+                              >
+                                −
+                              </button>
+                              <span className="min-w-5 text-center text-[12px] font-bold text-[#1f5b46]">
+                                {line.qty}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={busyItem === line.id}
+                                onClick={() => void setQty(line.id, line.qty + 1)}
+                                className="px-2.5 py-1.5 text-[14px] text-[#1f5b46]"
+                              >
+                                +
+                              </button>
+                            </div>
+                          ) : (
+                            <Btn
+                              size="sm"
+                              variant="outline"
+                              disabled={!item.available || busyItem === item.id}
+                              onClick={() => void add(item)}
+                            >
+                              {item.available
+                                ? busyItem === item.id
+                                  ? "…"
+                                  : "Add +"
+                                : "Sold out"}
+                            </Btn>
+                          );
                   return (
                     <div
                       key={item.id}
@@ -401,42 +446,7 @@ export function RestaurantView({
                             )}
                             <PortionLine item={item} />
                           </div>
-                          {line ? (
-                            <div className="flex items-center rounded-full border border-[#1f5b46]/30 bg-[#1f5b46]/5">
-                              <button
-                                type="button"
-                                disabled={busyItem === line.id}
-                                onClick={() => void setQty(line.id, line.qty - 1)}
-                                className="px-2.5 py-1.5 text-[14px] text-[#1f5b46]"
-                              >
-                                −
-                              </button>
-                              <span className="min-w-5 text-center text-[12px] font-bold text-[#1f5b46]">
-                                {line.qty}
-                              </span>
-                              <button
-                                type="button"
-                                disabled={busyItem === line.id}
-                                onClick={() => void setQty(line.id, line.qty + 1)}
-                                className="px-2.5 py-1.5 text-[14px] text-[#1f5b46]"
-                              >
-                                +
-                              </button>
-                            </div>
-                          ) : (
-                            <Btn
-                              size="sm"
-                              variant="outline"
-                              disabled={!item.available || busyItem === item.id}
-                              onClick={() => void add(item)}
-                            >
-                              {item.available
-                                ? busyItem === item.id
-                                  ? "…"
-                                  : "Add +"
-                                : "Sold out"}
-                            </Btn>
-                          )}
+                          {item.image_url ? null : action}
                         </div>
                         <p className="mt-1.5 max-w-xl text-[11px] leading-snug text-stone-500">
                           {item.description}
@@ -462,6 +472,20 @@ export function RestaurantView({
                           ))}
                         </div>
                       </div>
+                      {item.image_url ? (
+                        <div className="relative w-[118px] shrink-0 self-start pb-4">
+                          <Photo
+                            src={item.image_url}
+                            credit={item.image_credit}
+                            alt={item.name}
+                            className="h-[104px] w-[118px] rounded-2xl"
+                            creditTop
+                          />
+                          <div className="absolute inset-x-0 bottom-0 flex justify-center [&>*]:bg-white [&>*]:shadow-md">
+                            {action}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}

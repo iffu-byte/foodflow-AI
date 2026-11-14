@@ -11,10 +11,12 @@ import { OrdersView } from "./OrdersView";
 import { ProfileView } from "./ProfileView";
 import { RestaurantView } from "./RestaurantView";
 
+// Three places, like the food apps people already use: find food, pay for it,
+// and everything about you (orders, nutrition, addresses) in one account page.
 const nav: NavItem[] = [
-  { id: "discover", label: "Discover" },
-  { id: "orders", label: "Orders" },
-  { id: "profile", label: "Profile" },
+  { id: "discover", label: "Home" },
+  { id: "cart", label: "Cart" },
+  { id: "account", label: "Account" },
 ];
 
 export default function CustomerApp({
@@ -40,15 +42,16 @@ export default function CustomerApp({
     void refreshCart();
   }, []);
 
-  const active = route.startsWith("/customer/orders")
-    ? "orders"
-    : route === "/customer/profile"
-      ? "profile"
-      : "discover";
+  const active =
+    route === "/customer/cart" || route === "/customer/checkout"
+      ? "cart"
+      : route.startsWith("/customer/orders") || route === "/customer/profile"
+        ? "account"
+        : "discover";
 
   const onNavigate = (id: string) => {
-    if (id === "orders") navigate("/customer/orders");
-    else if (id === "profile") navigate("/customer/profile");
+    if (id === "cart") navigate("/customer/cart");
+    else if (id === "account") navigate("/customer/profile");
     else navigate("/customer");
   };
 
@@ -67,21 +70,29 @@ export default function CustomerApp({
     );
   } else if (orderMatch) {
     view = <OrderDetailView orderId={orderMatch[1]} onCartUpdated={setCart} />;
-  } else if (route === "/customer/cart") {
-    view = <CartView cart={cart} onCartUpdated={setCart} />;
-  } else if (route === "/customer/checkout") {
+  } else if (route === "/customer/cart" || route === "/customer/checkout") {
+    // One page: what you're buying, then where it goes and how you pay.
     view = (
-      <CheckoutView
-        cart={cart}
-        onOrderPlaced={() => {
-          void refreshCart();
-        }}
-      />
+      <div className="space-y-8">
+        <CartView cart={cart} onCartUpdated={setCart} embedded />
+        {cart && cart.items.length > 0 ? (
+          <CheckoutView
+            cart={cart}
+            embedded
+            onOrderPlaced={() => {
+              void refreshCart();
+            }}
+          />
+        ) : null}
+      </div>
     );
-  } else if (route === "/customer/orders") {
-    view = <OrdersView onCartUpdated={setCart} />;
-  } else if (route === "/customer/profile") {
-    view = <ProfileView user={user} />;
+  } else if (route === "/customer/orders" || route === "/customer/profile") {
+    view = (
+      <div className="space-y-8">
+        <OrdersView onCartUpdated={setCart} />
+        <ProfileView user={user} />
+      </div>
+    );
   } else {
     view = <Home user={user} onCartUpdated={setCart} />;
   }

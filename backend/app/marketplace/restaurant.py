@@ -55,6 +55,7 @@ def menu_item_out(item: MenuItem, rescue: dict | None = None) -> RestaurantMenuI
         available=item.available,
         description=item.description,
         image_url=item.image_url,
+        image_credit=item.image_credit or None,
         portion_grams=item.portion_grams,
         portion_serves=item.portion_serves,
         portion_pieces=item.portion_pieces,

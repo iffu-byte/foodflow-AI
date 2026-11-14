@@ -356,6 +356,7 @@ class RestaurantMenuItemOut(MenuItemOut):
     available: bool
     description: str
     image_url: str | None
+    image_credit: dict | None = None
     portion_grams: int | None = None
     portion_serves: int | None = None
     portion_pieces: int | None = None
@@ -381,6 +382,7 @@ class RestaurantBrowseOut(BaseModel):
     image_url: str | None
     is_active: bool
     distance_km: float | None = None
+    image_credit: dict | None = None
     kitchen_type: str = "dine_in"
     price_parity: bool = True
     trust_score: int | None = None

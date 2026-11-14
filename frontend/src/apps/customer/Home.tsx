@@ -29,6 +29,7 @@ import {
   SimBadge,
   Spinner,
 } from "../../components/market";
+import { Photo } from "../../components/Photo";
 import { RescueStrip, TrustBadge } from "../../components/trust";
 
 const cuisines = [
@@ -246,10 +247,14 @@ export function Home({
               onClick={() => navigate(`/customer/restaurants/${featured.id}`)}
               className="group relative overflow-hidden rounded-[24px] bg-[#fffcf6] text-left text-stone-900 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.8)] transition hover:-translate-y-0.5"
             >
-              <ProductArt
-                cuisine={featured.cuisine}
-                name={featured.name}
+              <Photo
+                src={featured.image_url}
+                credit={featured.image_credit}
+                alt={featured.image_credit?.dish ?? featured.name}
                 className="h-[150px]"
+                fallback={
+                  <ProductArt cuisine={featured.cuisine} name={featured.name} className="h-[150px]" />
+                }
               />
               <div className="p-4">
                 <div className="flex items-center justify-between gap-2">
@@ -455,11 +460,26 @@ export function Home({
               onClick={() => navigate(`/customer/restaurants/${restaurant.id}`)}
               className="group overflow-hidden rounded-[24px] border border-stone-900/10 bg-[#fffcf6]/70 text-left transition hover:-translate-y-1 hover:border-stone-900/20 hover:shadow-[0_28px_60px_-40px_rgba(28,25,23,0.6)]"
             >
-              <ProductArt
-                cuisine={restaurant.cuisine}
-                name={restaurant.name}
-                className="h-[150px]"
-              />
+              <div className="relative">
+                <Photo
+                  src={restaurant.image_url}
+                  credit={restaurant.image_credit}
+                  alt={restaurant.image_credit?.dish ?? restaurant.name}
+                  className="h-[170px]"
+                  fallback={
+                    <ProductArt
+                      cuisine={restaurant.cuisine}
+                      name={restaurant.name}
+                      className="h-[170px]"
+                    />
+                  }
+                />
+                {restaurant.rescue_live ? (
+                  <span className="absolute left-0 top-3 rounded-r-full bg-[#1f5b46] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.06em] text-white shadow">
+                    Rescue deals live
+                  </span>
+                ) : null}
+              </div>
               <div className="p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">

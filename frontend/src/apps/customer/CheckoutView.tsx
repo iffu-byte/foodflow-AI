@@ -22,9 +22,12 @@ import {
 export function CheckoutView({
   cart,
   onOrderPlaced,
+  embedded = false,
 }: {
   cart: Cart | null;
   onOrderPlaced: () => void;
+  /** Rendered under the cart on the same page: no back link or page title. */
+  embedded?: boolean;
 }) {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -104,6 +107,7 @@ export function CheckoutView({
 
   return (
     <div className="space-y-5">
+      {embedded ? null : (
       <button
         type="button"
         onClick={() => navigate("/customer/cart")}
@@ -111,12 +115,15 @@ export function CheckoutView({
       >
         ← Back to cart
       </button>
+      )}
 
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500">
           Last check
         </p>
-        <h1 className="mt-1 font-serif text-[38px] italic leading-none">
+        <h1
+          className={`mt-1 font-serif italic leading-none ${embedded ? "text-[28px]" : "text-[38px]"}`}
+        >
           Where should it land?
         </h1>
       </div>

@@ -83,4 +83,5 @@ def browse_out(restaurant, distance_km: float | None = None):
         distance_km=round(distance_km, 2) if distance_km is not None else None,
         kitchen_type=restaurant.kitchen_type,
         price_parity=restaurant.price_parity,
+        image_credit=restaurant.image_credit or None,
     )

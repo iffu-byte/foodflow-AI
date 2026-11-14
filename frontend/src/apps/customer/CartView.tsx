@@ -23,9 +23,12 @@ import {
 export function CartView({
   cart,
   onCartUpdated,
+  embedded = false,
 }: {
   cart: Cart | null;
   onCartUpdated: (cart: Cart) => void;
+  /** Inside the one-page cart + checkout: items and offers only, no bill. */
+  embedded?: boolean;
 }) {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [code, setCode] = useState("");
@@ -106,6 +109,33 @@ export function CartView({
     }
   };
 
+  const nutritionCard = (
+    <>
+      {cart.nutrition ? (
+            <div className="mt-4 rounded-2xl border border-[#f4b942]/40 bg-[#f4b942]/10 p-3">
+              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#8a5b0a]">
+                This order, estimated
+              </p>
+              <p className="mt-1 font-serif text-[22px] leading-none">
+                {Math.round(cart.nutrition.kcal)} kcal
+              </p>
+              <p className="mt-1 text-[11px] text-stone-600">
+            {cart.nutrition.protein_g} g protein · {cart.nutrition.carbs_g} g carbs ·{" "}
+            {cart.nutrition.fat_g} g fat
+              </p>
+          {cart.nutrition.allergens.length ? (
+                <p className="mt-1 text-[10px] text-rose-800">
+                  Contains: {cart.nutrition.allergens.join(", ")}
+                </p>
+              ) : null}
+              <p className="mt-1 text-[9px] text-stone-400">
+                Scaled to each dish&apos;s declared or measured portion.
+              </p>
+            </div>
+          ) : null}
+    </>
+  );
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -138,7 +168,11 @@ export function CartView({
 
       {error ? <Notice>{error}</Notice> : null}
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
+      <div
+        className={
+          embedded ? "space-y-4" : "grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start"
+        }
+      >
         <div className="space-y-4">
           <div className="overflow-hidden rounded-[26px] border border-stone-900/10 bg-[#fffcf6]/70">
             {cart.items.map((line, index) => (
@@ -274,6 +308,17 @@ export function CartView({
           </section>
         </div>
 
+        {embedded ? (
+          <div className="space-y-3">
+            {nutritionCard}
+            {belowMinimum && restaurant ? (
+              <Notice tone="info">
+                Add {formatCurrency(Number(restaurant.min_order_value) - Number(cart.subtotal))}{" "}
+                more to reach this kitchen&apos;s minimum order.
+              </Notice>
+            ) : null}
+          </div>
+        ) : (
         <aside className="rounded-[26px] border border-stone-900/10 bg-[#fffcf6] p-5 shadow-[0_28px_70px_-50px_rgba(28,25,23,0.7)] lg:sticky lg:top-24">
           <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-stone-500">
             The bill
@@ -304,28 +349,7 @@ export function CartView({
               />
             ) : null}
           </div>
-          {cart.nutrition ? (
-            <div className="mt-4 rounded-2xl border border-[#f4b942]/40 bg-[#f4b942]/10 p-3">
-              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#8a5b0a]">
-                This order, estimated
-              </p>
-              <p className="mt-1 font-serif text-[22px] leading-none">
-                {Math.round(cart.nutrition.kcal)} kcal
-              </p>
-              <p className="mt-1 text-[11px] text-stone-600">
-                {cart.nutrition.protein_g} g protein · {cart.nutrition.carbs_g} g carbs ·{" "}
-                {cart.nutrition.fat_g} g fat
-              </p>
-              {cart.nutrition.allergens.length ? (
-                <p className="mt-1 text-[10px] text-rose-800">
-                  Contains: {cart.nutrition.allergens.join(", ")}
-                </p>
-              ) : null}
-              <p className="mt-1 text-[9px] text-stone-400">
-                Scaled to each dish&apos;s declared or measured portion.
-              </p>
-            </div>
-          ) : null}
+          {nutritionCard}
 
           {belowMinimum && restaurant ? (
             <div className="mt-4">
@@ -349,9 +373,10 @@ export function CartView({
             not a guarantee.
           </p>
         </aside>
+        )}
       </div>
 
-      {restaurant ? (
+      {restaurant && !embedded ? (
         <div className="hidden overflow-hidden rounded-[26px] border border-stone-900/10 lg:block">
           <ProductArt
             cuisine={[]}

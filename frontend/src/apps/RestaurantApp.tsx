@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   ApiError,
+  fileToDataUrl,
   getManagerMenu,
   getManagerRestaurant,
   getRestaurantAnalytics,
@@ -11,6 +12,7 @@ import {
   patchManagerMenuItem,
   restaurantOrderSocketUrl,
   restaurantOrderAction,
+  uploadDishPhoto,
   type AuthUser,
   type BrowseMenuItem,
   type BrowseRestaurant,
@@ -40,6 +42,7 @@ import {
   StatusPill,
   type NavItem,
 } from "../components/market";
+import { Photo } from "../components/Photo";
 import { PortionStudio } from "./restaurant/PortionStudio";
 import { RescueBoard } from "./restaurant/RescueBoard";
 import { TrustBoard } from "./restaurant/TrustBoard";
@@ -77,6 +80,7 @@ export default function RestaurantApp({
   const [rejecting, setRejecting] = useState<MarketOrder | null>(null);
   const [rejectReason, setRejectReason] = useState("Kitchen is at capacity");
   const [editing, setEditing] = useState<BrowseMenuItem | null>(null);
+  const [measuring, setMeasuring] = useState<BrowseMenuItem | null>(null);
   const [editPrice, setEditPrice] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("connecting");
@@ -246,6 +250,21 @@ export default function RestaurantApp({
     }
   };
 
+  const uploadPhoto = async (item: BrowseMenuItem, file: File) => {
+    setBusy(`photo-${item.id}`);
+    setError(null);
+    try {
+      const next = await uploadDishPhoto(item.id, await fileToDataUrl(file));
+      setMenu((rows) => rows.map((row) => (row.id === next.id ? next : row)));
+      setEditing(next);
+      setToast(`${next.name} now shows your own photo.`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not upload the photo.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const saveItem = async () => {
     if (!editing) return;
     setBusy(editing.id);
@@ -267,12 +286,11 @@ export default function RestaurantApp({
 
   const newOrders = orders.filter((order) => order.status === "PLACED");
   const nav: NavItem[] = [
-    { id: "board", label: "Order board", badge: newOrders.length },
+    // Three pages: today's orders, the menu (with portions, photos and
+    // rescue deals), and the kitchen's public trust profile.
+    { id: "board", label: "Orders", badge: newOrders.length },
     { id: "menu", label: "Menu" },
-    { id: "portions", label: "Portion Studio" },
-    { id: "trust", label: "Trust" },
-    { id: "rescue", label: "Rescue" },
-    { id: "insights", label: "Insights" },
+    { id: "trust", label: "My Kitchen" },
   ];
 
   if (loading && !restaurant) return <Spinner label="Opening the pass" />;
@@ -288,7 +306,7 @@ export default function RestaurantApp({
   return (
     <MarketShell
       user={user}
-      roleLabel="Restaurant · the pass"
+      roleLabel="Restaurant Owner"
       nav={nav}
       active={tab}
       onNavigate={(id) => setTab(id as Tab)}
@@ -320,6 +338,12 @@ export default function RestaurantApp({
         />
       ) : null}
 
+      {tab === "board" ? (
+        <div className="mt-8">
+          <Insights restaurant={restaurant} analytics={analytics} orders={orders} menu={menu} />
+        </div>
+      ) : null}
+
       {tab === "menu" ? (
         <MenuBoard
           menu={menu}
@@ -333,26 +357,25 @@ export default function RestaurantApp({
         />
       ) : null}
 
-      {tab === "portions" ? (
-        <PortionStudio
-          menu={menu}
-          onItemUpdated={(next) =>
-            setMenu((rows) => rows.map((row) => (row.id === next.id ? next : row)))
-          }
-        />
+      {tab === "menu" ? (
+        <div className="mt-10">
+          <RescueBoard />
+        </div>
       ) : null}
 
       {tab === "trust" ? <TrustBoard /> : null}
 
-      {tab === "rescue" ? <RescueBoard /> : null}
-
-      {tab === "insights" ? (
-        <Insights
-          restaurant={restaurant}
-          analytics={analytics}
-          orders={orders}
-          menu={menu}
-        />
+      {measuring ? (
+        <Modal title={`Measure portion · ${measuring.name}`} onClose={() => setMeasuring(null)} wide>
+          <PortionStudio
+            menu={menu}
+            onlyItemId={measuring.id}
+            onItemUpdated={(next) => {
+              setMenu((rows) => rows.map((row) => (row.id === next.id ? next : row)));
+              setToast(`${next.name} portion published.`);
+            }}
+          />
+        </Modal>
       ) : null}
 
       {rejecting ? (
@@ -418,6 +441,47 @@ export default function RestaurantApp({
             >
               {busy === editing.id ? "Saving…" : "Save dish"}
             </Btn>
+            <div className="grid gap-2 border-t border-stone-900/10 pt-3 sm:grid-cols-2">
+              <div>
+                <Photo
+                  src={editing.image_url}
+                  credit={editing.image_credit}
+                  alt={editing.name}
+                  className="h-28 w-full rounded-xl"
+                />
+                <label className="mt-2 flex cursor-pointer items-center justify-center rounded-full border border-stone-900/15 bg-white/60 px-3 py-2 text-[12px] font-semibold hover:bg-white">
+                  {busy === `photo-${editing.id}` ? "Uploading…" : "Use my own dish photo"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void uploadPhoto(editing, file);
+                    }}
+                  />
+                </label>
+              </div>
+              <div className="flex flex-col justify-between rounded-xl bg-stone-900/[0.03] p-3 text-[11px] text-stone-600">
+                <p>
+                  {editing.portion_grams
+                    ? `Customers see ≈ ${editing.portion_grams} g (${editing.portion_method?.replace("_", " ")}).`
+                    : "Customers see: quantity not declared."}
+                </p>
+                <Btn
+                  size="sm"
+                  variant="outline"
+                  className="mt-2"
+                  onClick={() => {
+                    setMeasuring(editing);
+                    setEditing(null);
+                  }}
+                >
+                  Measure portion
+                </Btn>
+              </div>
+            </div>
           </div>
         </Modal>
       ) : null}

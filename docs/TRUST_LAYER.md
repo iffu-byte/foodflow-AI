@@ -27,3 +27,18 @@ Optional keys in `.env`: `GEMINI_API_KEY` (portion photo cross-check, nutrition 
 | AI cost meter | Ops > AI cost meter | Every paid call and cache hit is logged with an estimated cost. A daily budget (`AI_DAILY_BUDGET_USD`) stops paid calls, and features fall back to local methods. |
 
 Tests: `docker compose run --rm api python -m pytest -q` (156 passing). New tests are in `backend/tests/test_trust_layer.py`.
+
+## Three apps, few pages
+
+| Role | Pages |
+| --- | --- |
+| Customer | Home (search, rescue deals, kitchens) · Restaurant · Cart (cart and checkout on one page) · Track order · Account (orders, nutrition, profile) |
+| Restaurant Owner | Orders (live board and insights) · Menu (prices, own dish photos, Portion Studio, Rescue) · My Kitchen (licence, map listing, kitchen photos, trust score) |
+| FoodFlow Captain | Home (go online, offers, live delivery with OTP handover) · Earnings (earnings and trip history) |
+
+The operations console (AI cost meter, dispatch, models) is still available from the login page for admins.
+
+## Real photos
+
+- **Dish and restaurant cover photos:** real photographs from Wikimedia Commons under free licences (CC0, CC BY, CC BY-SA, public domain). No API key is needed. Every image shows its credit (author, licence, link to the source page). Run `docker compose exec api python -m app.images.service` to fetch photos for dishes that have none (the seed does this automatically). A restaurant can replace a stock photo with its own from Menu > Edit > "Use my own dish photo".
+- **Photos of the restaurant's real location:** Google Places (New) photos and reviews in the kitchen reality check. Needs `GOOGLE_MAPS_API_KEY` from a Google Cloud project with billing and "Places API (New)" enabled. Results are cached for 7 days and photo URLs for an hour, and every paid call is counted in the AI cost meter.

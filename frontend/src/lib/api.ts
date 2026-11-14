@@ -357,6 +357,7 @@ export interface BrowseRestaurant {
   image_url: string | null;
   is_active: boolean;
   distance_km: number | null;
+  image_credit?: PhotoCredit | null;
   kitchen_type?: string;
   price_parity?: boolean;
   trust_score?: number | null;
@@ -371,6 +372,16 @@ export interface BrowseRestaurant {
     veg: boolean;
     portion_grams: number | null;
   }>;
+}
+
+export interface PhotoCredit {
+  source: string;
+  author?: string;
+  licence?: string;
+  licence_url?: string | null;
+  page_url?: string | null;
+  title?: string;
+  dish?: string;
 }
 
 export interface NutritionView {
@@ -657,6 +668,7 @@ export interface BrowseMenuItem {
   available: boolean;
   description: string;
   image_url: string | null;
+  image_credit?: PhotoCredit | null;
   portion_grams?: number | null;
   portion_serves?: number | null;
   portion_pieces?: number | null;
@@ -1315,3 +1327,9 @@ export async function fileToDataUrl(file: File, maxSide = 1280, quality = 0.85):
   bitmap.close();
   return canvas.toDataURL("image/jpeg", quality);
 }
+
+export const uploadDishPhoto = (itemId: string, image: string) =>
+  request<BrowseMenuItem>(`/api/v1/restaurant/menu/${itemId}/photo`, {
+    method: "POST",
+    body: JSON.stringify({ image }),
+  });
